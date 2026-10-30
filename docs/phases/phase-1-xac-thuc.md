@@ -79,7 +79,7 @@ Admin là vai trò hệ thống, chỉ quản trị (đặc tả 3.1): không ch
 - [x] BE: test user có role đúng event được phép, sai event 403; sau nâng admin vẫn giữ role cũ nhưng guard nghiệp vụ trả 403. GET event-roles giữ hồ sơ lịch sử theo hợp đồng, không xóa dữ liệu để chặn quyền.
 - [x] FE: không dùng sự tồn tại của event-role để vượt khu quản trị; nối system overview và kiểm tra guard UI theo API mới.
 
-Trạng thái FE: [ ]
+Trạng thái FE: [x]
 
 ## Backend (Codex)
 
@@ -109,7 +109,7 @@ Trạng thái FE: [ ]
 - Không thêm env, dependency, bảng hoặc migration. Cần restart API/Beat (hoặc chạy lại run.ps1 khi đã dừng phiên cũ) để Beat dùng `worker.scheduler:HeartbeatScheduler`; scheduler ghi `seal:health:beat` mỗi 30 giây, TTL 120 giây, stale sau 90 giây. Không đăng ký task nghiệp vụ/sync giả chỉ để báo Beat đang chạy.
 - Lượt này không sửa frontend, không gửi email thăm dò và không khởi động lại tiến trình đang chạy của người dùng.
 
-Trạng thái FE: [ ]
+Trạng thái FE: [x]
 
 ### Bàn giao frontend cho lượt API đầu tiên
 
@@ -122,7 +122,7 @@ Trạng thái FE: [ ]
 - Các API `/auth/forgot-password`, `/auth/reset-password`, `/users/me/event-roles` và `/admin/*` đã được bổ sung trong lượt hoàn tất bên dưới.
 - Sau khi đổi env cần khởi động lại backend/worker (`Ctrl+C` rồi chạy lại `run.ps1`). Với local dùng thống nhất hostname `localhost` cho trình duyệt/API để cookie không lệch host; DB/Redis dùng IPv4 `127.0.0.1`.
 
-Trạng thái FE: [ ]
+Trạng thái FE: [x]
 
 ### Bàn giao frontend cho lượt hoàn tất Phase 1
 
@@ -134,7 +134,7 @@ Trạng thái FE: [ ]
 - Trang audit logs phân trang và lọc actor_id/action; hiển thị actor_email, action, target, data before/after, created_at đổi sang giờ địa phương. `403 FORBIDDEN` chuyển khỏi khu quản trị; route guard FE cần kiểm tra `user.is_admin`.
 - Người vận hành chạy migration rồi tạo admin đầu tiên bằng CLI; không cần UI cấp admin công khai. Không có tài khoản admin/mật khẩu mẫu được tự tạo.
 
-Trạng thái FE: [ ]
+Trạng thái FE: [x]
 
 ### Kết quả kiểm tra backend của lượt đầu
 

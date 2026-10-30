@@ -109,14 +109,14 @@
 - [x] Header admin thêm mục "Cuộc thi".
 - [x] Khu thí sinh `/events/[slug]/my-team`: tạo đội, nhập mã mời, xem thành viên, duyệt/xóa thành viên, chuyển leader, chọn track, khai báo repo, sao chép link mời.
 - [x] Trang `/join?code=...`: tham gia đội bằng link.
-- [x] Trang công khai `/events/[slug]/teams` "Vũ trụ đội thi": cuộc thi là mặt trời, mỗi đội đã duyệt là một hành tinh quay theo chiều kim đồng hồ, không giới hạn số đội (đã có giao diện với dữ liệu mẫu, chờ nối `teams/public`).
+- [x] Trang công khai `/events/[slug]/teams` "Vũ trụ đội thi": cuộc thi là mặt trời, mỗi đội đã duyệt là một hành tinh quay theo chiều kim đồng hồ, không giới hạn số đội, nối `teams/public`.
 - [x] Bảng duyệt đội cho BTC (lọc theo trạng thái/track).
 - [x] Trang `/dashboard`: danh sách cuộc thi tôi tham gia, kèm vai trò.
 - [x] Nối `/me/events` cho dashboard, slug resolver cho trang chi tiết; màn BTC xem người chưa có đội.
 - [ ] Judge chọn tên đội từ `team-directory` để khai báo xung đột: làm cùng màn giám khảo ở Phase 4.
 - [x] Hiển thị review_note, yêu cầu pending và mã mời hết hạn; cho rút đăng ký/hủy yêu cầu, khóa thao tác đội khi ongoing.
 
-Trạng thái FE: [ ]
+Trạng thái FE: [x]
 
 ### Kết quả kiểm tra backend (2026-10-30)
 
@@ -148,7 +148,7 @@ Trạng thái FE: [ ]
   thêm repo tham chiếu public cho đội approved; `python -m app.seed_demo --clean`
   nâng bộ mẫu v1 tại chỗ, giữ nguyên tài khoản, lịch thi và nội dung người dùng tự sửa.
   Repo là nguồn tham khảo của chủ sở hữu tương ứng, không phải repo do đội demo sở hữu.
-- Trạng thái FE: [ ]
+- Trạng thái FE: [x]
 
 Đã triển khai **41 operation**, xem hợp đồng phía trên và OpenAPI `/openapi.json`. Các checklist Backend đánh dấu hoàn thành ở mức code/test; không đồng nghĩa FE hoặc GitHub/SMTP thật đã được nghiệm thu. FE không được sửa tay type API.
 
@@ -187,4 +187,4 @@ Trạng thái FE: [ ]
 5. Trang quỹ đạo đội dùng teams/public (mảng, không Page). Member_count chỉ người active; dùng team.id làm key, không lấy hồ sơ private cho trang public.
 6. Xử lý TEAM_FROZEN theo server và khóa UI ở starts_at; HEAD/đồng hồ client không thay quyết định server. RESULTS_NOT_READY ở closed đang chờ Phase 4. Khi EMAIL_QUEUE_UNAVAILABLE sau review, refetch đội vì dữ liệu có thể đã lưu; không tự retry gửi mail mù.
 
-Trạng thái FE: [ ]
+Trạng thái FE: [x]
