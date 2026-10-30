@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+/* Bảng màu "Sổ phác thảo": xem docs/DESIGN.md */
+:root {
+  --paper: #ffffff;
+  --ink: #0d0d0d;
+  --cream: #fff8e0;
+  --warm: #f7f5f0;
+  --line: #e4e1da;
+  --muted: #555555;
+  --orange: #ff6b2c;
+  --sun: #ffd23f;
+  --sky: #8fdcff;
+  --rose: #ffb8c6;
+  --mint: #b8f0a0;
+  --leaf: #5fb247;
+  --plus: #1e7a34;
+  --minus: #b4232c;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-cream: var(--cream);
+  --color-warm: var(--warm);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-orange: var(--orange);
+  --color-sun: var(--sun);
+  --color-sky: var(--sky);
+  --color-rose: var(--rose);
+  --color-mint: var(--mint);
+  --color-leaf: var(--leaf);
+  --color-plus: var(--plus);
+  --color-minus: var(--minus);
+  --font-sans: var(--font-vietnam), system-ui, sans-serif;
+  --font-serif: var(--font-lora), Georgia, serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --shadow-sketch: 6px 6px 0 var(--ink);
+  --shadow-sketch-sm: 4px 4px 0 var(--ink);
+  --shadow-lip: 0 3px 0 var(--ink);
+  --shadow-lip-orange: 0 4px 0 var(--orange);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px dashed var(--ink);
+  outline-offset: 3px;
+}
+
+/* Thẻ nét mực + bóng cứng */
+@utility sketch {
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-sketch);
+}
+
+/* Nút pill có gờ dưới; phản hồi lúc nhấn xuống */
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.125rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-lip);
+  transition:
+    transform 180ms var(--ease-spring),
+    box-shadow 180ms var(--ease-spring),
+    gap 200ms ease;
+  &:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 var(--ink);
+    transition-duration: 60ms;
+  }
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  @media (hover: hover) {
+    &:not(:disabled):hover {
+      transform: translateY(-2px) rotate(-1deg);
+    }
+  }
+}
+
+/* Nhãn nhỏ viền mực */
+@utility chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.625rem;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Nổi lên khi hover, chỉ trên thiết bị có chuột */
+@utility lift {
+  transition:
+    transform 220ms var(--ease-spring),
+    box-shadow 220ms ease;
+  @media (hover: hover) {
+    &:hover {
+      transform: translate(-3px, -3px) rotate(-0.4deg);
+      box-shadow: 9px 9px 0 var(--ink);
+    }
+  }
+}
+
+/* Hạt nhiễu phủ lên video hero (kiểu PrismaHero) */
+@utility noise {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@utility drift {
+  animation: drift 7s ease-in-out infinite alternate;
+}
+
+@keyframes drift {
+  from {
+    transform: translateY(0) rotate(var(--r0, 0deg));
+  }
+  to {
+    transform: translateY(-22px) rotate(var(--r1, 8deg));
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+@utility pop-in {
+  animation: pop-in 420ms var(--ease-spring) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

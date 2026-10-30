@@ -1,0 +1,129 @@
+# Phase 4 – Chấm điểm, xếp hạng, công bố ⭐ MVP
+
+**Mục tiêu:** chấm theo rubric, khóa điểm, xếp hạng, công bố. Hết phase này, một cuộc thi chạy trọn vòng đời trên SEAL.
+
+**Phụ thuộc:** Phase 3.
+
+## Hợp đồng API
+
+### Rubric & phân công
+
+| Method | Path | Quyền | Body → Response |
+| --- | --- | --- | --- |
+| GET | `/events/{event_id}/rounds/{round_id}/rubric` | public khi event đã open; draft/lưu trữ theo quyền Event | → `Rubric` (không có điểm/nhận xét cá nhân) |
+| PUT | `/events/{event_id}/rounds/{round_id}/rubric` | organizer trước round.starts_at và trước khi có điểm | `{criteria: CriterionInput[]}` → `Rubric` |
+| POST | `/events/{event_id}/conflicts` | judge | `{team_id, reason}` → 201 |
+| GET | `/events/{event_id}/conflicts` | organizer tất cả; judge chỉ của mình | `?limit&offset` → `{items: Conflict[], total}` |
+| GET | `/events/{event_id}/rounds/{round_id}/assignments` | organizer | `?limit&offset` → `{items: Assignment[], total}` |
+| POST | `/events/{event_id}/rounds/{round_id}/assignments` | organizer | `{judge_id, team_ids}` → `AssignmentBatch` (báo rõ cặp bị bỏ) |
+| POST | `/events/{event_id}/rounds/{round_id}/assignments/auto` | organizer | `{judges_per_team}` → `AssignmentBatch` |
+| DELETE | `/assignments/{assignment_id}` | organizer (chưa chấm) | → 204 |
+| POST | `/events/{event_id}/mentor-assignments` | organizer | `{mentor_id, team_ids}` → 201 |
+| GET | `/events/{event_id}/mentor-assignments` | organizer, admin | `?limit&offset` → `{items: MentorAssignment[], total}` |
+| DELETE | `/mentor-assignments/{assignment_id}` | organizer | → 204, thu hồi quyền hiện tại, giữ lịch sử góp ý |
+| POST | `/assignments/{assignment_id}/cancel` | organizer, vòng chưa khóa/chưa công bố | `{reason}` → `Assignment` (hủy cả bài đã xác nhận, giữ lịch sử) |
+| GET | `/events/{event_id}/rounds/{round_id}/eligible-teams` | organizer, admin | `?limit&offset` → `{items: RoundTeam[], total}` |
+| PUT | `/events/{event_id}/rounds/{round_id}/eligible-teams` | organizer trước khi vòng bắt đầu | `{source_round_id, team_ids}` → `{items: RoundTeam[], total}` (thay toàn bộ danh sách) |
+
+- `Rubric`: `{round_id, criteria: [{id, name, description, weight, max_score, order}]}`; tổng `weight` = 100.
+- `Assignment`: `{id, round_id, judge: UserBrief, team: {id, name, track_id}, submission_id, status: pending|draft|submitted|cancelled, revision, submitted_at}`
+- `Conflict`: `{id, judge: UserBrief, team_id, reason, created_at}`; không trả cho participant/mentor/guest, giữ hồ sơ sau khi thay phân công.
+- `AssignmentBatch`: `{items: Assignment[], skipped: [{team_id, code}], unfilled: [{team_id, missing_judges}]}`; input tối đa 100 team IDs; không đủ judge vẫn phải báo thiếu, không tự coi thành công đầy đủ.
+- `MentorAssignment`: `{id, event_id, mentor: UserBrief, team: {id, name}, created_at}`; POST trả `{items: MentorAssignment[]}` với tối đa 100 team IDs, không tạo trùng cặp mentor/team.
+- `RoundTeam`: `{team_id, name, source_round_id}`. Vòng đầu mặc định mọi đội approved; vòng tiếp theo phải có danh sách BTC xác nhận từ đội có kết quả đã công bố ở vòng nguồn, cùng event và vòng nguồn có order thấp hơn. Không có wildcard tự vào lại vòng sau. Đổi danh sách trước starts_at ghi audit/thông báo; không tự chọn theo top N khi đồng hạng.
+
+### Chấm điểm (giám khảo)
+
+| Method | Path | Quyền | Body → Response |
+| --- | --- | --- | --- |
+| GET | `/me/assignments` | judge | `?event_id&round_id&limit&offset` → `{items: Assignment[], total}` |
+| GET | `/assignments/{assignment_id}` | judge sở hữu phân công, organizer; admin sau khóa | → `{assignment, submission, rubric, scores}` |
+| PUT | `/assignments/{assignment_id}/scores` | judge được phân công | `{expected_revision, scores: [{criterion_id, score, comment?}], general_comment?}` → `{assignment, scores}`; tăng revision |
+| POST | `/assignments/{assignment_id}/submit` | judge được phân công | `{expected_revision}` → `Assignment`, xác nhận và tăng revision, không sửa được nữa |
+| POST | `/assignments/{assignment_id}/reopen` | organizer | `{reason}` → `draft` (ghi audit log) |
+
+### Khóa điểm, xếp hạng, công bố
+
+| Method | Path | Quyền | Body → Response |
+| --- | --- | --- | --- |
+| GET | `/events/{event_id}/rounds/{round_id}/judging-progress` | organizer | `?limit&offset` → `{items: [{team, required, assigned, submitted, missing, has_conflict}], total}` |
+| POST | `/events/{event_id}/rounds/{round_id}/lock` | organizer | → 204 (mọi đội có bài hợp lệ đủ required_judges, các phân công còn hiệu lực đều submitted, không còn conflict) |
+| POST | `/events/{event_id}/rounds/{round_id}/unlock` | organizer | `{reason}` → 204 |
+| GET | `/events/{event_id}/rounds/{round_id}/leaderboard` | organizer; admin sau khóa; public sau công bố | `?track_id&limit&offset` → `{items: LeaderboardRow[], total, publication_revision}` |
+| POST | `/events/{event_id}/rounds/{round_id}/publish` | organizer (đã khóa) | → 204, gửi email kết quả |
+| POST | `/events/{event_id}/rounds/{round_id}/unpublish` | organizer, event chưa closed | `{reason}` → 204 (thu hồi công bố trước khi sửa) |
+| GET | `/teams/{team_id}/rounds/{round_id}/result` | thành viên active (sau công bố), organizer/admin (sau khóa) | → `{rank, total, criteria: [{name, avg}], comments: string[], publication_revision}` (ẩn tên giám khảo) |
+| GET/POST | `/teams/{team_id}/mentor-notes` | mentor được phân công (POST); mentor được phân công, thành viên active, organizer, admin (GET) | POST `{content, commit_sha?, kind?, progress_status?}` → 201 `MentorNote`; GET `?commit_sha&limit&offset` → `{items: MentorNote[], total}` |
+| GET | `/me/mentoring` | mentor | `?event_id&limit&offset` → `{items: Team[], total}` |
+
+- `MentorNote`: `{id, team_id, mentor: UserBrief, content, commit_sha, kind, progress_status, created_at}`; kind=`feedback|progress` mặc định feedback, progress_status=`on_track|at_risk|blocked` bắt buộc khi kind=progress, null khi feedback. `commit_sha` null nếu góp ý chung; chỉ nhận commit đã lưu đúng đội khi Phase 5 sẵn sàng. Góp ý không sửa/xóa sau gửi; tiến độ mới là note mới, trạng thái gần nhất dùng cho dashboard.
+- `LeaderboardRow`: `{rank, team: {id, name, track_id}, total, criteria: [{criterion_id, avg}], tied}`
+- publication_revision là số nguyên bắt đầu 0, tăng mỗi lần publish phiên bản mới. Batch scores/save/submit/reopen phản hồi chỉ điểm của phân công đó; không nhúng điểm của người khác.
+- Công thức: điểm đội = trung bình giữa các giám khảo của `Σ(score/max_score × weight)`, thang 100, làm tròn 2 chữ số.
+- Đồng điểm: so lần lượt avg tiêu chí theo weight giảm dần/order tăng dần, rồi thời điểm nộp bản cuối sớm hơn; vẫn bằng nhau thì cùng hạng. Quy tắc làm tròn và kiểu hạng ghi tại "Điều kiện chấm và sửa kết quả".
+- Mã lỗi: `CONFLICT_OF_INTEREST`, `SCORES_LOCKED`, `ASSIGNMENT_SUBMITTED`, `SCORING_INCOMPLETE`, `SCORE_OUT_OF_RANGE`, `RUBRIC_WEIGHT_INVALID`, `NOT_PUBLISHED`.
+
+### Điều kiện chấm và sửa kết quả
+
+- Chỉ tạo phân công sau hạn nộp, cho đội eligible có bản cuối hợp lệ; lưu submission_id cố định. Đội không có bài hợp lệ mang trạng thái `not_submitted`, không có điểm/hạng, vẫn hiện ở bảng tiến độ BTC; không chấm 0 rồi xếp hạng như đã nộp.
+- required_judges lấy từ Round Phase 2; auto input phải bằng cấu hình này, phân bổ bù chỗ còn thiếu, không ghi đè phân công thủ công. Không vượt required_judges, không có đủ judge thì trả unfilled. Lock không thành công khi không có bài hợp lệ hoặc chỉ có tập phân công rỗng (`409 SCORING_INCOMPLETE`).
+- Judge active/verified, có role đúng event; loại cặp có conflict hoặc từng là mentor của đội. Khai báo conflict sau phân công lập tức chặn sửa/xác nhận bài đó và khóa/công bố vòng; BTC phải cancel, thay judge. Nếu đã công bố thì BTC thu hồi công bố trước, điểm cũ không tự sửa. Cancel giữ mọi điểm/audit, loại phân công khỏi tổng hợp; DELETE chỉ dùng phân công pending chưa có điểm.
+- Draft cho phép thiếu tiêu chí; submit phải đủ đúng một điểm/tiêu chí, không lặp hoặc có criterion ngoài rubric. max_score > 0, weight >= 0 và tổng weight=100; điểm là số hữu hạn trong giới hạn. expected_revision sai trả `409 SCORE_VERSION_CONFLICT` để hai tab không ghi đè nháp nhau. Mọi đổi điểm, submit/reopen/cancel/lock/unlock/publish/unpublish ghi audit cùng transaction.
+- Reopen chỉ khi chưa khóa/chưa công bố. Unlock bị chặn khi còn công bố. Unpublish giữ snapshot lịch sử, xóa cờ public và cache; publish tiếp tăng publication_revision, chỉ gửi email/sự kiện một lần cho mỗi revision. Đóng event yêu cầu mọi vòng có kết quả cuối đã công bố; sau closed chỉ tra cứu, không sửa điểm.
+- Dùng Decimal, làm tròn HALF_UP 2 chữ số cho tổng điểm chính thức; so tổng đã làm tròn, rồi avg từng tiêu chí theo weight giảm dần, order tăng dần, rồi submitted_at sớm hơn. Vẫn bằng dùng cùng hạng kiểu 1,1,3; track lọc và tính hạng riêng trong track. Public response chỉ team id/name/track và điểm; không tên/email judge hay raw score từng judge. result nội bộ trả publication_revision và nhận xét ẩn danh sau công bố; BTC đọc kết quả để kiểm tra sau khóa.
+- Rubric và lịch sử snapshot đã sử dụng không sửa/xóa. Admin chỉ đọc điểm sau khóa; judge chỉ đọc scores của assignment của mình, kể cả khi vòng đã khóa. Không mở endpoint đọc điểm đồng nghiệp chỉ vì có cùng role judge.
+
+### Hỏi/đáp mentor theo đội
+
+| Method | Path | Quyền | Body → Response |
+| --- | --- | --- | --- |
+| GET | `/teams/{team_id}/questions` | active member, mentor được phân công, organizer, admin | `?status&limit&offset` → `{items: MentorQuestion[], total}` |
+| POST | `/teams/{team_id}/questions` | active member, event open/ongoing | `{title, content, commit_sha?}` → 201 `MentorQuestion` |
+| POST | `/questions/{question_id}/answers` | mentor đang được phân công, event open/ongoing | `{content}` → 201 `MentorAnswer` |
+| POST | `/questions/{question_id}/resolve` | người hỏi hoặc leader active của đội | → 204, idempotent, event open/ongoing |
+
+- `MentorQuestion`: `{id, team_id, author: UserBrief, title, content, commit_sha, status: open|answered|resolved, created_at, resolved_at}`; title 1–150, content 1–5000 ký tự đã trim; chỉ đội và người được phép đọc, không chat công khai. Question list không nhúng mảng answers vô hạn.
+- `MentorAnswer`: `{id, question_id, mentor: UserBrief, content, created_at}`; thêm GET `/questions/{question_id}/answers?limit&offset` → `{items: MentorAnswer[],total}` cùng quyền GET question. Trả lời đầu chuyển open → answered, câu hỏi resolved không nhận trả lời; nội dung gửi rồi không sửa/xóa. Góp ý bổ sung dùng câu trả lời mới.
+- Member pending/người ngoài/judge không được đọc Q&A, mentor bị gỡ phân công mất quyền đọc/ghi mới, hồ sơ câu trả lời vẫn giữ. Giới hạn POST tạo câu hỏi/trả lời 30/phút/user; UI báo khi chưa có mentor, cho lưu câu hỏi chờ phân công. Thay mentor không xóa câu hỏi cũ.
+- Mã lỗi bổ sung: `SCORE_VERSION_CONFLICT`, `ROUND_ALREADY_STARTED`, `ROUND_NOT_ELIGIBLE`, `RESULTS_PUBLISHED`, `QUESTION_RESOLVED`; sai trạng thái 409, ngoài quyền 403. Giới hạn role xem team/round/assignment luôn kiểm tra cả event sở hữu.
+
+## Backend (Codex)
+
+- [ ] Module `judging`: model `rubric_criteria`, `conflicts`, `assignments`, `scores`, `mentor_assignments`, `mentor_notes`.
+- [ ] Validate tổng trọng số = 100; điểm trong `[0, max_score]`.
+- [ ] Giám khảo không đọc được điểm của giám khảo khác trước khi khóa (kiểm tra trong service).
+- [ ] Phân công tự động: chia đều, bỏ cặp xung đột, không phân công trùng.
+- [ ] Mọi thay đổi điểm sau xác nhận (reopen, unlock) ghi audit log.
+- [ ] Module `ranking`: tính bảng xếp hạng theo công thức trên, cache Redis, xóa cache khi khóa/mở/sửa điểm.
+- [ ] Publish: đặt cờ đã công bố, gửi email kết quả qua worker.
+- [ ] `mentor_notes` có `commit_sha` (nullable, index `(team_id, commit_sha)`).
+- [ ] Admin đọc result/leaderboard chỉ sau khi vòng đã khóa; admin gọi chấm, phân công, khóa, công bố, ghi góp ý → 403.
+- [ ] Test: admin đọc result trước khóa → 403, sau khóa → 200; công thức điểm, đồng điểm, giám khảo xem điểm người khác (403), chấm bài không được phân công (403), xung đột lợi ích.
+- [ ] Dùng events service quản lý round eligibility đã tạo Phase 2; migration assignment submission_id/revision/cancelled, publication snapshots/revision; khóa khi đủ judge cho từng đội, xử lý conflict muộn và sửa công bố theo transaction/audit.
+- [ ] Mentor assignment GET/DELETE; note tiến độ; models mentor_questions/mentor_answers, API hỏi/đáp và rate limit; Phase 4 chạy được không có commit/AI.
+- [ ] Nối quyền đọc team cho mentor/judge qua phân công thực tế; thay guard thu hồi role đang ongoing/judging của Phase 2 bằng kiểm tra assignment còn hiệu lực. Nối điều kiện judging → closed với snapshot kết quả đã công bố, thay RESULTS_NOT_READY mặc định của Phase 2.
+- [ ] Test: zero assignments không khóa được; đổi ID round/team chéo event, chấm phiên bản cũ đúng snapshot, xung đột mentor-judge, nháp stale, unpublish/unlock/reopen/republish, đội không qua vòng không nộp được; mentor bị gỡ không đọc bài/Q&A.
+
+## Frontend (Claude)
+
+- [ ] BTC – editor rubric: thêm/xóa/sắp xếp tiêu chí, hiển thị tổng trọng số realtime, chặn lưu khi ≠ 100.
+- [ ] BTC – màn phân công: ma trận giám khảo × đội, nút tự động phân công, đánh dấu cặp xung đột.
+- [ ] BTC – tiến độ chấm, nút khóa/mở khóa (nhập lý do), xem bảng xếp hạng, nút công bố có xác nhận.
+- [ ] BTC – phân công mentor.
+- [ ] Giám khảo `/judge`: danh sách bài được giao, trạng thái từng bài; khai báo xung đột lợi ích.
+- [ ] Giám khảo – màn chấm: bên trái thông tin bài nộp (link, file), bên phải form rubric; tự lưu nháp; nút xác nhận có cảnh báo không sửa được.
+- [ ] Mentor `/mentor`: danh sách đội, ghi góp ý (chọn gắn vào commit nào).
+- [ ] Admin `/admin/teams/[id]`: tab Góp ý mentor (lọc theo commit) và tab Kết quả chấm (chỉ hiện khi vòng đã khóa).
+- [ ] Trang công khai `/events/[slug]/results` (SSR): bảng xếp hạng theo vòng/track, đánh dấu đồng hạng.
+- [ ] Thí sinh: xem điểm từng tiêu chí và nhận xét của đội sau công bố.
+- [ ] BTC quản lý đội qua vòng, thu hồi/thay mentor và judge; AssignmentBatch hiển thị skipped/unfilled thay vì báo hoàn tất chung.
+- [ ] Mentor và đội: câu hỏi, câu trả lời, đánh dấu giải quyết; note ghi tiến độ; panel commit/AI hiển thị chưa sẵn sàng khi Phase 5–6 chưa có.
+- [ ] Judge tự lưu có expected_revision; khi conflict không tự retry ghi đè. BTC có luồng thu hồi công bố → sửa → công bố revision mới; public ẩn kết quả khi bị thu hồi.
+
+Trạng thái FE: [ ]
+
+## Xong khi
+
+- Chạy trọn một cuộc thi thử từ `draft` đến `closed` chỉ trên SEAL.
+- Test BE về điểm, đồng điểm, quyền xem điểm pass.
+- Bảng xếp hạng công khai chỉ hiện sau khi công bố.

@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+celerybeat-schedule*
+*.egg-info/
+.logs/

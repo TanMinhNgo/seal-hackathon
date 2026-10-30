@@ -1,0 +1,20 @@
+name: Backend
+on:
+  push:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  pull_request:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+      - run: python -m pip install -r requirements.lock
+        working-directory: backend
+      - run: python -m ruff check . && python -m ruff format --check . && python -m pytest
+        working-directory: backend
