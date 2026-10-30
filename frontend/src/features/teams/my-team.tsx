@@ -10,7 +10,9 @@ import { Field } from "@/components/ui/field";
 import { LocalTime } from "@/components/ui/local-time";
 import { FormError } from "@/features/auth/auth-card";
 import { useMyEvents } from "@/features/auth/use-event-roles";
+import { Tabs } from "@/features/events/manage";
 import type { Event, Page, Team, Track } from "@/features/events/types";
+import { SubmitTab } from "@/features/submissions/submissions";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 
@@ -96,10 +98,33 @@ export function MyTeam({ slug }: { slug: string }) {
   const me = t.members.find((m) => m.user.id === user.id);
   if (me?.status === "pending") return <Shell title="Đang chờ vào đội." event={ev}><PendingRequest team={t} userId={user.id} onDone={() => setTeam(null)} /></Shell>;
 
+  const view = <TeamView event={ev} team={t} tracks={tracks.data ?? []} userId={user.id} frozen={frozen} onTeam={setTeam} onReload={reload} />;
   return (
     <Shell title={`${t.name}.`} event={ev}>
-      <TeamView event={ev} team={t} tracks={tracks.data ?? []} userId={user.id} frozen={frozen} onTeam={setTeam} onReload={reload} />
+      {ev.status === "ongoing" || ev.status === "judging" || ev.status === "closed" ? (
+        <TeamTabs submit={<SubmitTab event={ev} team={t} leader={t.leader_id === user.id} />}>{view}</TeamTabs>
+      ) : (
+        view
+      )}
     </Shell>
+  );
+}
+
+function TeamTabs({ submit, children }: { submit: ReactNode; children: ReactNode }) {
+  const [tab, setTab] = useState<"submit" | "team">("submit");
+  return (
+    <div className="space-y-7">
+      <Tabs<"submit" | "team">
+        label="Đội của tôi"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          ["submit", "Nộp bài"],
+          ["team", "Đội & repo"],
+        ]}
+      />
+      {tab === "submit" ? submit : children}
+    </div>
   );
 }
 

@@ -97,7 +97,35 @@ const MESSAGES: Record<string, string> = {
   TEAM_NOT_ELIGIBLE: "Đội chưa đủ điều kiện duyệt: cần đủ thành viên chính thức, không còn yêu cầu chờ và có repo.",
   TEAM_NOT_FOUND: "Không tìm thấy đội.",
   TRACK_NOT_FOUND: "Không tìm thấy track.",
+  DEADLINE_PASSED: "Đã quá hạn nộp của vòng này (tính theo giờ máy chủ).",
+  ROUND_NOT_OPEN: "Đội chưa nộp được vòng này: vòng chưa mở, đã đóng, hoặc đội chưa được BTC chọn vào vòng.",
+  ROUND_NOT_FOUND: "Không tìm thấy vòng thi.",
+  ROUND_NOT_ELIGIBLE: "Đội không thuộc danh sách được thi vòng này.",
+  TEAM_NOT_APPROVED: "Đội chưa được duyệt nên chưa nộp được bài.",
+  SUBMISSIONS_FROZEN: "Vòng này đã bắt đầu chấm, không nhận thêm phiên bản.",
+  SUBMISSION_NOT_FOUND: "Không tìm thấy bài nộp.",
+  IDEMPOTENCY_CONFLICT: "Lần gửi này trùng mã với một lần nộp khác. Tải lại trang rồi nộp lại.",
+  REPO_MISMATCH: "Repo nộp phải đúng repo đội đã được duyệt.",
+  REPO_UNAVAILABLE: "Chưa lấy được commit mới nhất từ GitHub, bài chưa được nộp. Hãy thử lại.",
+  FILE_TOO_LARGE: "File vượt quá 100 MB.",
+  FILE_TYPE_NOT_ALLOWED: "Chỉ nhận file .pdf, .pptx, .mp4, .zip đúng định dạng.",
+  FILE_NOT_UPLOADED: "File chưa tải lên xong hoặc đã dùng cho lần nộp khác. Hãy chọn và tải lại file.",
+  STORAGE_NOT_CONFIGURED: "Máy chủ chưa cấu hình nơi lưu file.",
+  STORAGE_UNAVAILABLE: "Kho lưu file đang không phản hồi, hãy thử lại sau.",
 };
+
+type Presign = components["schemas"]["PresignOutput"];
+
+/** Gửi file thẳng lên storage theo chữ ký từ `/uploads/presign`; trả `file_key` để gắn vào bài nộp. */
+export async function uploadToStorage(teamId: string, file: File, contentType: string, onProgress: (ratio: number) => void) {
+  const { data: p } = await api.post<Presign>("/uploads/presign", { team_id: teamId, filename: file.name, content_type: contentType, size: file.size });
+  const form = new FormData();
+  for (const [k, v] of Object.entries(p.fields)) form.append(k, v);
+  form.append("file", file);
+  // axios thuần, không qua `api`: không được gửi Bearer của SEAL sang Cloudinary; để browser tự đặt multipart boundary
+  await axios.request({ url: p.upload_url, method: p.method, data: form, headers: p.headers, onUploadProgress: (e) => onProgress(e.total ? e.loaded / e.total : 0) });
+  return p.file_key;
+}
 
 export function errorCode(error: unknown): string | undefined {
   return isAxiosError<{ code?: string }>(error) ? error.response?.data?.code : undefined;

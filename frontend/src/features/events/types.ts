@@ -13,3 +13,5 @@ export type MyEvent = S["MyEvent"];
 export type RoleItem = S["RoleOutput"];
 export type Registration = S["Registration"];
 export type Page<T> = { items: T[]; total: number };
+export type Submission = S["SubmissionOutput"];
+export type RoundSubmission = S["RoundSubmission"];
