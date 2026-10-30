@@ -77,7 +77,7 @@ Monorepo: `backend/` (FastAPI) và `frontend/` (Next.js 16, React 19, Tailwind 4
 - Kiểu dữ liệu API sinh từ OpenAPI của backend (`openapi-typescript`), không gõ tay lặp lại.
 - Không dùng `any`. Không tắt rule ESLint/TS trừ khi có comment lý do.
 - Ẩn nút theo quyền chỉ là UX; quyền thật luôn do server quyết định.
-- Upload file: xin presigned URL từ API rồi upload thẳng lên storage.
+- Upload file: gọi `/uploads/presign` lấy chữ ký Cloudinary, POST FormData gồm nguyên `fields` và `file` trực tiếp tới `upload_url`; không tự đặt multipart Content-Type. File dùng authenticated raw, tải qua URL ký từ API.
 - Style bằng Tailwind; responsive tới màn hình di động. Form có `label`, ảnh có `alt`, điều khiển dùng được bằng bàn phím.
 - Cấu trúc: `src/app/` (route), `src/components/` (UI dùng chung), `src/features/<module>/` (component + hook theo module), `src/lib/` (api client, util).
 

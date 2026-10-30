@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     smtp_tls: Literal["none", "starttls", "ssl"] = "starttls"
     smtp_from: EmailStr = "noreply@seal.example"
     github_token: SecretStr | None = None
+    cloudinary_cloud_name: str = Field(default="", pattern=r"^[A-Za-z0-9_-]*$")
+    cloudinary_api_key: SecretStr | None = None
+    cloudinary_api_secret: SecretStr | None = None
 
 
 @lru_cache

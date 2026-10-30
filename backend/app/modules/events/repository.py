@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -14,6 +15,42 @@ CHILDREN = {"rounds": Round, "tracks": Track, "prizes": Prize}
 
 
 class EventRepository:
+    @staticmethod
+    def reminder_rounds(session: object, now: datetime) -> list[tuple[object, set[UUID] | None]]:
+        events = list(
+            session.scalars(
+                select(Event).where(Event.status == "ongoing", Event.archived_at.is_(None))
+            )
+        )
+        rounds = list(
+            session.scalars(
+                select(Round)
+                .where(Round.event_id.in_([e.id for e in events]), Round.submission_deadline > now)
+                .order_by(Round.event_id, Round.order)
+            )
+        )
+        eligibilities = list(
+            session.scalars(
+                select(RoundEligibility).where(
+                    RoundEligibility.round_id.in_([r.id for r in rounds])
+                )
+            )
+        )
+        first = dict(
+            session.execute(
+                select(Round.event_id, func.min(Round.order)).group_by(Round.event_id)
+            ).all()
+        )
+        return [
+            (
+                r,
+                None
+                if r.order == first[r.event_id]
+                else {e.team_id for e in eligibilities if e.round_id == r.id},
+            )
+            for r in rounds
+        ]
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 

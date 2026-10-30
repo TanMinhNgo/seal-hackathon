@@ -14,6 +14,8 @@ from app.core.config import Settings, get_settings
 from app.core.db import Base, get_db
 from app.main import api, app
 from app.modules.auth.dependencies import rate_limit_auth
+from tests.test_events_teams import world  # noqa: F401
+from tests.test_submissions import submission_world  # noqa: F401
 from worker.tasks.send_email import send_email
 
 

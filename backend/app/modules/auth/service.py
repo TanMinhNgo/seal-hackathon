@@ -35,6 +35,10 @@ logger = logging.getLogger(__name__)
 
 
 class AuthService:
+    @staticmethod
+    def reminder_users(session: object, ids: list[UUID]) -> dict[UUID, object]:
+        return AuthRepository.reminder_users(session, ids)
+
     def __init__(self, repository: AuthRepository, settings: Settings) -> None:
         self.repository = repository
         self.settings = settings

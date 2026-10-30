@@ -45,3 +45,24 @@ async def verify_public_repo(repo_url: str, settings: Settings) -> str:
     except (httpx.HTTPError, ValueError):
         raise ApiError(503, "GITHUB_UNAVAILABLE", "GitHub access is unavailable") from None
     return f"https://github.com/{owner}/{repo}"
+
+
+async def head_sha(repo_url: str, settings: Settings) -> str:
+    try:
+        canonical = await verify_public_repo(repo_url, settings)
+        path = canonical.removeprefix("https://github.com/")
+        async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
+            response = await client.get(
+                f"https://api.github.com/repos/{path}/commits/HEAD",
+                headers={
+                    "Authorization": f"Bearer {settings.github_token.get_secret_value()}",
+                    "Accept": "application/vnd.github+json",
+                },
+            )
+        payload = response.json() if response.status_code == 200 else {}
+        sha = payload.get("sha", "") if isinstance(payload, dict) else ""
+        if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise ValueError("Invalid HEAD SHA")
+        return sha
+    except (ApiError, httpx.HTTPError, ValueError):
+        raise ApiError(503, "REPO_UNAVAILABLE", "Cannot verify repository HEAD") from None

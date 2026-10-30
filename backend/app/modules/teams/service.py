@@ -39,6 +39,10 @@ if TYPE_CHECKING:
 
 
 class TeamService:
+    @staticmethod
+    def reminder_teams(session: object, event_id: UUID, eligible: set[UUID] | None) -> list[object]:
+        return TeamRepository.reminder_teams(session, event_id, eligible)
+
     def __init__(
         self,
         repository: TeamRepository,

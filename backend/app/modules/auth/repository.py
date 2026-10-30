@@ -18,6 +18,20 @@ from app.modules.auth.schemas import AuditLogOutput, DataCounts
 
 
 class AuthRepository:
+    @staticmethod
+    def reminder_users(session: object, ids: list[UUID]) -> dict[UUID, object]:
+        return {
+            u.id: u
+            for u in session.scalars(
+                select(User).where(
+                    User.id.in_(ids),
+                    User.is_active.is_(True),
+                    User.email_verified.is_(True),
+                    User.is_admin.is_(False),
+                )
+            )
+        }
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 

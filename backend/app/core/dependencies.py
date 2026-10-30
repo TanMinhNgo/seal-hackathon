@@ -7,6 +7,9 @@ from app.core.db import get_db
 from app.modules.auth.dependencies import ServiceDependency, SettingsDependency
 from app.modules.events.repository import EventRepository
 from app.modules.events.service import EventService
+from app.modules.judging.service import JudgingService
+from app.modules.submissions.repository import SubmissionRepository
+from app.modules.submissions.service import SubmissionService
 from app.modules.teams.repository import TeamRepository
 from app.modules.teams.service import TeamService
 
@@ -37,3 +40,18 @@ def get_team_service(
 
 
 TeamServiceDependency = Annotated[TeamService, Depends(get_team_service)]
+
+
+def get_submission_service(
+    session: SessionDependency,
+    teams: TeamServiceDependency,
+    events: EventServiceDependency,
+    auth: ServiceDependency,
+    settings: SettingsDependency,
+) -> SubmissionService:
+    return SubmissionService(
+        SubmissionRepository(session), teams, events, auth, JudgingService(), settings
+    )
+
+
+SubmissionServiceDependency = Annotated[SubmissionService, Depends(get_submission_service)]
