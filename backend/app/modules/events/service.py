@@ -33,6 +33,10 @@ if TYPE_CHECKING:
 
 
 class EventService:
+    @staticmethod
+    def reminder_rounds(session: object, now: datetime) -> list[tuple[object, set[UUID] | None]]:
+        return EventRepository.reminder_rounds(session, now)
+
     def __init__(self, repository: EventRepository, auth: AuthService) -> None:
         self.repository = repository
         self.auth = auth
@@ -401,6 +405,16 @@ class EventService:
 
     async def rounds(self, event_id: UUID) -> list[object]:
         return await self.repository.all_rounds(event_id)
+
+    async def submission_round(self, event_id: UUID, round_id: UUID) -> object:
+        round_ = await self.repository.child("rounds", event_id, round_id)
+        if round_ is None:
+            raise ApiError(404, "ROUND_NOT_FOUND", "Round not found in event")
+        return round_
+
+    async def submission_eligible(self, round_: object, team_id: UUID) -> bool:
+        rounds = await self.rounds(round_.event_id)
+        return round_.id == rounds[0].id or await self.repository.eligible(round_.id, team_id)
 
     async def update_account(
         self, actor: UserOutput, target_id: UUID, data: AdminUserInput

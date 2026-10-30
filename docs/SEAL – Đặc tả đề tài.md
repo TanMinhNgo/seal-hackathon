@@ -84,7 +84,7 @@ Hệ thống có 6 nhóm actor (Guest, Participant, Mentor, Judge, Organizer, Ad
 | Ban tổ chức (Organizer) | Người vận hành cuộc thi được Admin giao | Cấu hình vòng thi, track, mốc thời gian, rubric; xem đăng ký, duyệt đội; phân công/thu hồi giám khảo, mentor; chọn đội qua vòng; khóa/mở điểm; công bố/thu hồi/công bố lại có lý do; gửi thông báo, xem dashboard, xuất báo cáo |
 | Quản trị viên (Admin) | Quản trị toàn hệ thống, tách khỏi nghiệp vụ cuộc thi | Quản lý tài khoản; tạo cuộc thi/chỉ định BTC, sửa metadata và lưu trữ; xem hồ sơ mọi cuộc thi (điểm chỉ sau khóa), health/dung lượng/audit/export; không tham gia đội, duyệt đội, chấm, mentor hoặc công bố thay BTC |
 | Dịch vụ email (hệ thống ngoài) | SMTP hoặc dịch vụ gửi mail | Gửi email xác thực, lời mời vào đội, nhắc hạn, thông báo kết quả |
-| Lưu trữ file (hệ thống ngoài) | Object storage (S3/Cloudinary) | Lưu slide, video, tài liệu bài nộp |
+| Lưu trữ file (hệ thống ngoài) | Cloudinary (authenticated raw assets) | Lưu slide, video, tài liệu bài nộp; upload và download có chữ ký |
 | GitHub API (hệ thống ngoài) | Nguồn dữ liệu commit của các đội | Cung cấp danh sách commit của repo đội theo chu kỳ 30 phút; gửi webhook push nếu có cấu hình |
 | Dịch vụ AI (hệ thống ngoài) | LLM API (ví dụ OpenAI) | Nhận diff của commit kèm rubric; trả về điểm theo tiêu chí, danh sách lỗi và đánh giá tổng (JSON) |
 
@@ -125,7 +125,7 @@ Mọi request đi qua lớp dependency xác thực (JWT + RBAC theo cuộc thi) 
 | Database | PostgreSQL + SQLAlchemy 2.0 (async) + Alembic | Dữ liệu quan hệ chặt (đội, bài nộp, điểm); cần transaction và ràng buộc unique |
 | Cache / Queue | Redis + Celery (Celery Beat chạy lịch 30 phút) | Cache bảng xếp hạng; job gửi email, nhắc hạn, tính lại điểm |
 | Realtime | python-socketio (chạy chung ASGI app) | Cập nhật bảng xếp hạng và thông báo tức thời |
-| Lưu trữ file | S3 hoặc Cloudinary, upload bằng presigned URL | File đi thẳng từ client lên storage, không làm nghẽn API |
+| Lưu trữ file | Cloudinary: signed POST FormData, authenticated raw; download URL ký có hạn | Client upload trực tiếp lên Cloudinary; khi chốt bài, API xác minh và đọc file kiểm tra trước khi lưu biên nhận |
 | Triển khai | Docker Compose, Nginx, Ubuntu (VPS hoặc AWS EC2) | Một lệnh dựng toàn bộ hệ thống; dev và production giống nhau |
 
 ### 4.2 Tổ chức mã nguồn backend
@@ -148,7 +148,7 @@ seal-backend/
 │   │   ├── ranking/
 │   │   ├── notifications/
 │   │   └── reports/
-│   └── integrations/        # github_client.py, llm_client.py, mailer.py
+│   └── integrations/        # github_client.py, llm_client.py, mailer.py, storage.py (Cloudinary)
 ├── worker/
 │   ├── celery_app.py        # cấu hình Celery + lịch Beat 30 phút
 │   └── tasks/               # sync_commits.py, ai_review.py, send_email.py
@@ -168,7 +168,7 @@ seal-backend/
 
 1. **Vòng đời cuộc thi:** Admin tạo cuộc thi và chỉ định BTC (Draft) → BTC cấu hình, mở đăng ký (Open) → thi (Ongoing) → tất cả vòng hết hạn nộp (Judging) → công bố các vòng, đóng (Closed). Mỗi vòng có lịch nhận/chấm và danh sách đội đủ điều kiện riêng; có thể chấm vòng trước khi event còn Ongoing để tổ chức vòng tiếp theo.
 2. **Lập đội:** Thí sinh tạo đội và trở thành Trưởng nhóm → gửi mã mời → thành viên tham gia (server kiểm tra giới hạn số người và mỗi người chỉ thuộc một đội trong một cuộc thi) → BTC duyệt đội.
-3. **Nộp bài:** client xin presigned URL → upload file → gửi metadata → API kiểm tra điều kiện vòng/hạn theo giờ server, chốt file và SHA repo, trả biên nhận/version. Bài tính điểm là bản cuối hợp lệ trước hạn, được cố định trong phân công chấm.
+3. **Nộp bài:** client gọi `/uploads/presign` lấy `upload_url` và `fields` đã ký → POST FormData gồm nguyên `fields` + `file` lên Cloudinary → gửi metadata/file_keys và Idempotency-Key tới API nộp bài → API kiểm tra điều kiện vòng/hạn theo UTC server, chuyển asset authenticated raw sang ID bài nộp riêng, kiểm tra file và chốt SHA repo, trả biên nhận/version. Upload thành công chưa phải nộp bài thành công; bài tính điểm là bản cuối hợp lệ trước hạn, được cố định trong phân công chấm. File chỉ tải qua download URL ký có hạn từ API.
 4. **Chấm điểm:** BTC phân công đủ giám khảo mỗi đội (loại xung đột và mentor của đội) → chấm nháp/xác nhận → BTC khóa khi đủ bài chấm hợp lệ → tính điểm, xếp hạng. Đội không nộp không có hạng; vòng sau cần BTC xác nhận danh sách từ kết quả vòng trước.
 5. **Công bố:** BTC công bố → worker gửi email kết quả → bảng xếp hạng công khai cập nhật qua WebSocket.
 6. **Sửa kết quả:** khi event chưa Closed, BTC thu hồi công bố có lý do → mở khóa/mở bài chấm → judge sửa/xác nhận → khóa và công bố revision mới, giữ lịch sử/audit và thông báo thay đổi.
@@ -176,7 +176,7 @@ seal-backend/
 
 ### 4.4 Rủi ro kỹ thuật và cách xử lý
 
-- **Nộp bài sát hạn chót:** hạn được kiểm tra ở server, không tin giờ của client; upload qua presigned URL để giảm tải API.
+- **Nộp bài sát hạn chót:** hạn được kiểm tra ở server, không tin giờ của client; client upload trực tiếp lên Cloudinary bằng signed POST. API vẫn đọc/kiểm tra file khi chốt và kiểm tra hạn lần nữa; cần dành thời gian cho bước nộp bài sau upload, không cộng thêm thời gian vì upload đã bắt đầu trước hạn.
 - **Nộp trùng khi bấm nhiều lần:** dùng idempotency key hoặc ràng buộc unique `(team_id, round_id, version)`.
 - **Sai lệch điểm:** điểm đã xác nhận chỉ BTC mở lại được; mọi thay đổi đều ghi vào audit log.
 - **Lộ quyền:** kiểm tra quyền theo cuộc thi ở mọi endpoint. Ví dụ: Giám khảo chỉ đọc được bài được phân công cho mình.

@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { buttonClass } from "@/components/ui/button";
+import { serverNow } from "@/components/ui/countdown";
 import { EVENT_STATUS, type EventStatus } from "@/components/ui/event-status-badge";
 import { Field } from "@/components/ui/field";
 import { LocalTime } from "@/components/ui/local-time";
@@ -385,6 +386,9 @@ const LIMIT = 20;
 export function TeamsPanel({ eventId, review }: { eventId: string; review: boolean }) {
   const queryClient = useQueryClient();
   const tracks = useTracks(eventId);
+  const event = useEvent(eventId);
+  // Server khóa duyệt đội (TEAM_FROZEN) khi không còn "open" hoặc đã tới giờ thi
+  const canDecide = review && event.data?.status === "open" && Date.parse(event.data.starts_at) > serverNow();
   const [status, setStatus] = useState(review ? "pending" : "");
   const [trackId, setTrackId] = useState("");
   const [offset, setOffset] = useState(0);
@@ -469,7 +473,9 @@ export function TeamsPanel({ eventId, review }: { eventId: string; review: boole
                   </td>
                   <td className="max-w-56 break-all px-3 py-3 font-mono text-xs">{t.repo_url ? <a href={t.repo_url} target="_blank" rel="noreferrer" className="underline">{t.repo_url.replace("https://github.com/", "")}</a> : "—"}</td>
                   <td className="px-3 py-3 text-right">
-                    {review ? (
+                    {review && !canDecide ? (
+                      <span className="text-sm text-muted">Đã khóa</span>
+                    ) : review ? (
                       <span className="inline-flex flex-wrap justify-end gap-1.5">
                         {t.status !== "approved" && (
                           <button type="button" className="btn bg-mint text-sm" disabled={decide.isPending} onClick={() => decide.mutate({ id: t.id, body: { status: "approved" } })}>
@@ -495,7 +501,7 @@ export function TeamsPanel({ eventId, review }: { eventId: string; review: boole
         </table>
         {teams.data?.total === 0 && <p className="p-3 font-serif italic text-muted">Không có đội nào khớp.</p>}
       </div>
-      {rejecting && (
+      {rejecting && canDecide && (
         <form onSubmit={reject} className="rounded-2xl border-2 border-ink bg-rose p-4">
           <label className="block">
             <span className="text-sm font-bold">Lý do từ chối đội {rejecting.name} (bắt buộc, đội sẽ thấy)</span>

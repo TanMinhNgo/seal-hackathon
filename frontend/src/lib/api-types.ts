@@ -748,6 +748,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/uploads/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Presign */
+        post: operations["presign_api_v1_uploads_presign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}/rounds/{round_id}/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Team Submissions */
+        get: operations["team_submissions_api_v1_teams__team_id__rounds__round_id__submissions_get"];
+        put?: never;
+        /** Submit */
+        post: operations["submit_api_v1_teams__team_id__rounds__round_id__submissions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/submissions/{submission_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Submission */
+        get: operations["submission_api_v1_submissions__submission_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{event_id}/rounds/{round_id}/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Round Submissions */
+        get: operations["round_submissions_api_v1_events__event_id__rounds__round_id__submissions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1106,6 +1175,24 @@ export interface components {
             /** Participant Count */
             participant_count?: number | null;
         };
+        /** FileOutput */
+        FileOutput: {
+            /** Key */
+            key: string;
+            /** Filename */
+            filename: string;
+            /** Size */
+            size: number;
+            /** Content Type */
+            content_type: string;
+            /** Download Url */
+            download_url?: string | null;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /** InviteInput */
         InviteInput: {
             /** Invite Code */
@@ -1203,6 +1290,20 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[RoundSubmission] */
+        Page_RoundSubmission_: {
+            /** Items */
+            items: components["schemas"]["RoundSubmission"][];
+            /** Total */
+            total: number;
+        };
+        /** Page[SubmissionOutput] */
+        Page_SubmissionOutput_: {
+            /** Items */
+            items: components["schemas"]["SubmissionOutput"][];
+            /** Total */
+            total: number;
+        };
         /** Page[TeamBrief] */
         Page_TeamBrief_: {
             /** Items */
@@ -1223,6 +1324,40 @@ export interface components {
             items: components["schemas"]["TrackOutput"][];
             /** Total */
             total: number;
+        };
+        /** PresignInput */
+        PresignInput: {
+            /**
+             * Team Id
+             * Format: uuid
+             */
+            team_id: string;
+            /** Filename */
+            filename: string;
+            /** Content Type */
+            content_type: string;
+            /** Size */
+            size: number;
+        };
+        /** PresignOutput */
+        PresignOutput: {
+            /** Upload Url */
+            upload_url: string;
+            /**
+             * Method
+             * @default POST
+             */
+            method: string;
+            /** Headers */
+            headers: {
+                [key: string]: string;
+            };
+            /** Fields */
+            fields: {
+                [key: string]: string;
+            };
+            /** File Key */
+            file_key: string;
         };
         /** PrizeInput */
         PrizeInput: {
@@ -1465,6 +1600,17 @@ export interface components {
             /** Required Judges */
             required_judges?: number | null;
         };
+        /** RoundSubmission */
+        RoundSubmission: {
+            /**
+             * Team Id
+             * Format: uuid
+             */
+            team_id: string;
+            /** Name */
+            name: string;
+            submission: components["schemas"]["SubmissionOutput"] | null;
+        };
         /** ServiceStatus */
         ServiceStatus: {
             /**
@@ -1481,6 +1627,63 @@ export interface components {
             latency_ms?: number | null;
             /** Detail */
             detail?: string | null;
+        };
+        /** SubmissionInput */
+        SubmissionInput: {
+            /** Repo Url */
+            repo_url: string;
+            /** Demo Url */
+            demo_url?: string | null;
+            /** Video Url */
+            video_url?: string | null;
+            /** Description */
+            description?: string | null;
+            /** File Keys */
+            file_keys?: string[];
+        };
+        /** SubmissionOutput */
+        SubmissionOutput: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Team Id
+             * Format: uuid
+             */
+            team_id: string;
+            /**
+             * Round Id
+             * Format: uuid
+             */
+            round_id: string;
+            /** Version */
+            version: number;
+            /** Repo Url */
+            repo_url: string;
+            /** Commit Sha */
+            commit_sha: string;
+            /** Demo Url */
+            demo_url: string | null;
+            /** Video Url */
+            video_url: string | null;
+            /** Description */
+            description: string | null;
+            /** Files */
+            files: components["schemas"]["FileOutput"][];
+            /**
+             * Submitted By
+             * Format: uuid
+             */
+            submitted_by: string;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Is Final */
+            is_final: boolean;
         };
         /** SystemOverview */
         SystemOverview: {
@@ -1678,6 +1881,19 @@ export interface components {
             items: components["schemas"]["UserOutput"][];
             /** Total */
             total: number;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /** VerifyEmailInput */
         VerifyEmailInput: {
@@ -7058,6 +7274,178 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorOutput"];
+                };
+            };
+        };
+    };
+    presign_api_v1_uploads_presign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresignInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignOutput"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    team_submissions_api_v1_teams__team_id__rounds__round_id__submissions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                team_id: string;
+                round_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SubmissionOutput_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_api_v1_teams__team_id__rounds__round_id__submissions_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path: {
+                team_id: string;
+                round_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmissionInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionOutput"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submission_api_v1_submissions__submission_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionOutput"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    round_submissions_api_v1_events__event_id__rounds__round_id__submissions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                event_id: string;
+                round_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RoundSubmission_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

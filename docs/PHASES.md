@@ -4,7 +4,7 @@ Mỗi phase là một file trong `docs/phases/`, gồm: hợp đồng API chung,
 
 Rà soát chức năng và ưu tiên bổ sung theo từng vai trò: [ROLE-REVIEW.md](ROLE-REVIEW.md). Các mục mới là kế hoạch cần triển khai, không phải xác nhận API đã tồn tại.
 
-Tiến độ backend 2026-10-30: Phase 1 có 15 operation, Phase 2 có 41 operation và migration 0004 đã áp dụng local. Bằng chứng kiểm tra, giới hạn phụ thuộc Phase 3–4 và cấu hình GitHub còn thiếu xem [bàn giao Phase 2](phases/phase-2-cuoc-thi-doi-thi.md#bàn-giao-backend-phase-2). Frontend được theo dõi riêng, chưa suy là đã nối API từ trạng thái backend.
+Tiến độ backend 2026-10-30: Phase 1 có 15 operation, Phase 2 có 41 operation; Phase 3 có 5 operation và migration 0005_submissions ở PostgreSQL local. Cloudinary signed POST/authenticated raw đã cấu hình; smoke thật PDF/ZIP/PPTX/MP4 qua upload/chốt/tải, URL không ký bị chặn và replay không đổi file đã chốt; GitHub HEAD public cũng qua. Lượt rà soát Phase 3: lint xanh, 43 test qua/2 test khóa dòng bỏ qua ở SQLite, Alembic không drift; bằng chứng toàn bộ/PostgreSQL từ lượt triển khai trước và việc còn lại (FE/demo toàn luồng, SMTP/inbox, quota/file lớn, hook Phase 4) xem [bàn giao Phase 3](phases/phase-3-nop-bai.md#bàn-giao-backend-phase-3). Phase 3 chưa nghiệm thu toàn luồng; frontend theo dõi riêng.
 
 | Phase | File | Nội dung |
 | --- | --- | --- |

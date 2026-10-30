@@ -12,6 +12,24 @@ from app.modules.teams.models import Team, TeamMember
 
 
 class TeamRepository:
+    @staticmethod
+    def reminder_teams(session: object, event_id: UUID, eligible: set[UUID] | None) -> list[object]:
+        query = (
+            select(Team)
+            .join(
+                TeamMember, (TeamMember.team_id == Team.id) & (TeamMember.user_id == Team.leader_id)
+            )
+            .where(
+                Team.event_id == event_id,
+                Team.status == "approved",
+                Team.disbanded_at.is_(None),
+                TeamMember.status == "active",
+            )
+        )
+        if eligible is not None:
+            query = query.where(Team.id.in_(eligible))
+        return list(session.scalars(query))
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 

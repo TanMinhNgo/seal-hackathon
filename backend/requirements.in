@@ -8,6 +8,7 @@ alembic>=1.14,<2
 celery[redis]>=5.4,<6
 python-socketio>=5.12,<6
 httpx>=0.28,<1
+cloudinary>=1.44,<2
 pyjwt>=2.10,<3
 pwdlib[argon2]>=0.2,<1
 email-validator>=2.2,<3

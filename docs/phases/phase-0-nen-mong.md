@@ -57,11 +57,11 @@ Trạng thái FE: [ ]
 - [x] Script `npm run gen:api` sinh `src/lib/api-types.ts` từ `openapi.json` của BE.
 - [x] `src/lib/api.ts`: client chung đọc `NEXT_PUBLIC_API_URL`, parse lỗi `{detail, code}` thành `ApiError`.
 - [x] `QueryProvider` bọc trong `src/app/layout.tsx`.
-- [ ] Layout chung: header, footer, container responsive; thay trang mặc định của Next.
-- [ ] Trang chủ tạm gọi `/health` để chứng minh kết nối.
+- [x] Layout chung: header, footer, container responsive; thay trang mặc định của Next.
+- [x] Trang chủ tạm gọi `/health` để chứng minh kết nối. Thay bằng ô `api` ở `/admin` (system overview) gọi `/health`; trang chủ là landing nên không gắn chỉ báo tạm.
 - [x] Tạo thư mục `src/components/`, `src/features/`, `src/lib/`.
 - [x] `.env.example` với `NEXT_PUBLIC_API_URL`.
-- [ ] GitHub Actions job frontend: `npm run lint` + `npm run build`.
+- [x] GitHub Actions job frontend: `npm run lint` + `npm run build` (`.github/workflows/frontend.yml`).
 
 ## Xong khi
 
