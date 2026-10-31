@@ -81,7 +81,7 @@ function RubricEditor({ eventId, round }: { eventId: string; round: Round }) {
   const rubric = useRubric(eventId, round.id);
   if (rubric.isError) return <FormError>{errorMessage(rubric.error)}</FormError>;
   if (!rubric.data) return <p role="status">Đang tải…</p>;
-  return <RubricForm key={rubric.dataUpdatedAt} eventId={eventId} round={round} rubric={rubric.data} />;
+  return <RubricForm eventId={eventId} round={round} rubric={rubric.data} />;
 }
 
 function RubricForm({ eventId, round, rubric }: { eventId: string; round: Round; rubric: Rubric }) {
@@ -94,7 +94,7 @@ function RubricForm({ eventId, round, rubric }: { eventId: string; round: Round;
     mutationFn: async () =>
       (
         await api.put<Rubric>(`/events/${eventId}/rounds/${round.id}/rubric`, {
-          criteria: rows.map((r, i) => ({ name: r.name.trim(), description: r.description.trim() || null, weight: r.weight, max_score: r.max_score, order: i + 1 })),
+          criteria: rows.map((r, i) => ({ name: r.name.trim(), description: r.description.trim(), weight: r.weight, max_score: r.max_score, order: i + 1 })),
         })
       ).data,
     onSuccess: (r) => {
@@ -142,7 +142,7 @@ function RubricForm({ eventId, round, rubric }: { eventId: string; round: Round;
               <span className="font-mono text-lg font-extrabold">{i + 1}.</span>
               <label className="min-w-0 flex-[2_1_220px]">
                 <span className="text-sm font-bold">Tên tiêu chí</span>
-                <input value={r.name} onChange={(e) => edit(i, { name: e.target.value })} required maxLength={200} className={`mt-1.5 ${INPUT}`} />
+                <input value={r.name} onChange={(e) => edit(i, { name: e.target.value })} required maxLength={150} className={`mt-1.5 ${INPUT}`} />
               </label>
               <label className="w-28">
                 <span className="text-sm font-bold">Trọng số %</span>
@@ -165,7 +165,7 @@ function RubricForm({ eventId, round, rubric }: { eventId: string; round: Round;
               </span>
               <label className="w-full">
                 <span className="text-sm font-bold">Mô tả cho giám khảo</span>
-                <input value={r.description} onChange={(e) => edit(i, { description: e.target.value })} maxLength={2000} className={`mt-1.5 ${INPUT}`} />
+                <input value={r.description} onChange={(e) => edit(i, { description: e.target.value })} maxLength={5000} className={`mt-1.5 ${INPUT}`} />
               </label>
             </fieldset>
           </li>

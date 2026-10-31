@@ -194,3 +194,12 @@ FE đã sửa mục 1–3 ngày 2026-10-31 (sinh lại type; nút theo `locked_a
 4. Chưa nghiệm thu UI mentor/admin, cuộc thi hai vòng có đội bị loại, stale draft/conflict/reopen trên trình duyệt, và SMTP/inbox. Các test API tương ứng trước đây không thay cho bằng chứng UI.
 
 Trạng thái FE: [ ]
+
+### Nghiệm thu trình duyệt FE (Claude, 2026-10-31)
+
+Fixture local riêng `fe-check-1031b` (event `05162704-62d8-431f-913d-fc5dc4ea9f28`; BTC, 2 judge, mentor, 3 đội, admin; mật khẩu không ghi vào repo). Bài nộp vòng 1 chèn sẵn trong DB để tập trung vào UI Phase 4; deadline vòng 1 là giờ thật, không chỉnh đồng hồ. Chạy bằng Playwright trên `next start` + API local.
+
+- Đã qua trên UI: tab Phân công mở trước hạn, nút tự bật sau hạn 1 giây không cần đổi tab; tự động phân công báo đủ 6 phân công; nút Khóa/Mở khóa/Công bố/Thu hồi đúng từng trạng thái; hai tab cùng chấm → tab cũ dừng tự lưu, báo xung đột, tải bản máy chủ; chấm/xác nhận 6 bài; xếp hạng 85.00 và đồng hạng 2-2 (Beta/Gamma 70.00); trang công khai thấy sau công bố, ẩn sau thu hồi, lọc track; thu hồi → mở khóa → mở lại bài → judge chấm lại → khóa → công bố revision 2 (Alpha 88.00); thí sinh xem Kết quả khi event còn ongoing và hỏi mentor; mentor trả lời, ghi góp ý/tiến độ, xem bài nộp; admin xem kết quả sau khóa, góp ý (lọc SHA), hỏi/đáp chỉ đọc; vòng 2 soạn rubric (chặn khi ≠100, đổi thứ tự) và chọn đội từ kết quả vòng 1.
+- Lỗi tìm thấy và đã sửa: lưu rubric gửi `description: null` khi để trống → 422 (BE nhận chuỗi); thông báo “Đã lưu.” của rubric không hiện vì form bị dựng lại; bài chưa chấm hiện nhãn “Đã lưu nháp”.
+- Chưa thử trên UI: trạng thái event closed/archived ẩn thao tác, khai báo xung đột lợi ích của judge, hủy/thay judge, thu hồi mentor, thí sinh đánh dấu câu hỏi đã giải quyết, vòng 2 nộp/chấm, email kết quả.
+

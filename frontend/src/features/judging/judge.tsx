@@ -260,7 +260,7 @@ function ScoreForm({ detail, onReload }: { detail: AssignmentDetail; onReload: (
   });
   // Chỉ là tạm tính để giám khảo tự kiểm tra; điểm chính thức do server tính
   const preview = criteria.reduce((s, c) => s + ((Number(values[c.id].score) || 0) / Number(c.max_score)) * Number(c.weight), 0);
-  const saveLabel = stale ? "Có thay đổi ở nơi khác" : save.isPending ? "Đang lưu…" : dirty ? "Chưa lưu" : assignment.status === "submitted" ? "Đã xác nhận" : "Đã lưu nháp";
+  const saveLabel = stale ? "Có thay đổi ở nơi khác" : save.isPending ? "Đang lưu…" : dirty ? "Chưa lưu" : assignment.status === "submitted" ? "Đã xác nhận" : assignment.status === "pending" ? "Chưa chấm" : "Đã lưu nháp";
 
   return (
     <section aria-labelledby="rubric-title" className="sketch min-w-0 flex-[1.3_1_480px] rounded-[26px] p-6 shadow-[8px_8px_0_var(--ink)]">
