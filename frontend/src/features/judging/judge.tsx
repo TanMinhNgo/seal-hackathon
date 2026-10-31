@@ -236,9 +236,9 @@ function ScoreForm({ detail, onReload }: { detail: AssignmentDetail; onReload: (
     onError: (e) => errorCode(e) === "SCORE_VERSION_CONFLICT" && setStale(true),
   });
 
-  // Tự lưu nháp 1,2 giây sau lần gõ cuối; đang lưu thì chờ lượt sau
+  // Tự lưu nháp 1,2 giây sau lần gõ cuối; đang lưu thì chờ lượt sau; lỗi thì dừng tới lần sửa kế tiếp để không gửi lặp
   useEffect(() => {
-    if (!dirty || !editable) return;
+    if (!dirty || !editable || save.isError) return;
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       if (!save.isPending) save.mutate();
@@ -247,6 +247,7 @@ function ScoreForm({ detail, onReload }: { detail: AssignmentDetail; onReload: (
   }, [values, general, dirty, editable, save]);
 
   const touch = () => {
+    if (save.isError) save.reset();
     edits.current++;
     setDirty(true);
   };
