@@ -153,7 +153,7 @@ const WARN: Partial<Record<EventStatus, string>> = {
   open: "Thí sinh bắt đầu đăng ký và lập đội được. Cần có ít nhất một vòng thi hợp lệ.",
   ongoing: "Chỉ chuyển được từ giờ bắt đầu thi; đội chưa duyệt sẽ không được nộp bài.",
   judging: "Ngừng nhận bài, giám khảo bắt đầu chấm.",
-  closed: "Cuộc thi kết thúc; cần kết quả đã công bố (Phase 4).",
+  closed: "Cuộc thi kết thúc; mọi vòng phải có kết quả đã công bố. Sau đó chỉ tra cứu, không sửa điểm.",
 };
 
 /** Thanh trạng thái một chiều; chỉ BTC chuyển (admin không vận hành thay). */

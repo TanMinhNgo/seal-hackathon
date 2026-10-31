@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { FormError } from "@/features/auth/auth-card";
+import { JudgingPanel, MentorAssignmentsPanel } from "@/features/judging/organizer";
 import { RoundSubmissionsPanel } from "@/features/submissions/submissions";
 import { errorMessage } from "@/lib/api";
 import { CrudPanel, EventEditor, RegistrationsPanel, RolesPanel, StatusStepper, Tabs, TeamsPanel, useEvent } from "./manage";
 
-type Tab = "info" | "rounds" | "tracks" | "prizes" | "roles" | "teams" | "registrations" | "submissions";
+type Tab = "info" | "rounds" | "tracks" | "prizes" | "roles" | "teams" | "registrations" | "submissions" | "judging" | "mentors";
 
 /** Khu vận hành của ban tổ chức cho một cuộc thi. */
 export function ManageEvent({ eventId }: { eventId: string }) {
@@ -47,6 +48,8 @@ export function ManageEvent({ eventId }: { eventId: string }) {
           ["teams", "Duyệt đội"],
           ["registrations", "Người đăng ký"],
           ["submissions", "Bài nộp"],
+          ["mentors", "Phân công mentor"],
+          ["judging", "Chấm điểm"],
         ]}
       />
 
@@ -68,6 +71,8 @@ export function ManageEvent({ eventId }: { eventId: string }) {
             <RoundSubmissionsPanel eventId={e.id} />
           </>
         )}
+        {tab === "mentors" && <MentorAssignmentsPanel eventId={e.id} />}
+        {tab === "judging" && <JudgingPanel eventId={e.id} />}
       </section>
     </main>
   );

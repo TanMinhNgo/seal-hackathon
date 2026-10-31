@@ -19,6 +19,15 @@ def test_auth_migration_upgrade_schema_and_downgrade(tmp_path, monkeypatch):
     try:
         tables = inspect(engine).get_table_names()
         assert {"users", "password_reset_tokens", "audit_logs", "event_roles"} <= set(tables)
+        assert {
+            "assignments",
+            "rubric_criteria",
+            "scores",
+            "publication_snapshots",
+            "mentor_questions",
+            "mentor_answers",
+            "result_emails",
+        } <= set(tables)
         command.downgrade(alembic, "0002_auth")
         tables = inspect(engine).get_table_names()
         assert (

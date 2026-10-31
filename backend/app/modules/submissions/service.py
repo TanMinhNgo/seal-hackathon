@@ -31,6 +31,14 @@ logger = logging.getLogger(__name__)
 
 
 class SubmissionService:
+    async def judging_snapshots(self, assignments: list[object]) -> dict:
+        rows = await self.repository.get_many([a.submission_id for a in assignments])
+        return {s.team_id: s for s in rows}
+
+    async def final_for_judging(self, team_ids: list[UUID], round_: object) -> dict:
+        rows = await self.repository.finals(team_ids, round_.id)
+        return {s.team_id: s for s in rows if utc(s.submitted_at) < utc(round_.submission_deadline)}
+
     def __init__(
         self,
         repository: SubmissionRepository,

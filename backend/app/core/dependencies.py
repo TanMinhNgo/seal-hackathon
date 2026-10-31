@@ -7,6 +7,7 @@ from app.core.db import get_db
 from app.modules.auth.dependencies import ServiceDependency, SettingsDependency
 from app.modules.events.repository import EventRepository
 from app.modules.events.service import EventService
+from app.modules.judging.repository import JudgingRepository
 from app.modules.judging.service import JudgingService
 from app.modules.submissions.repository import SubmissionRepository
 from app.modules.submissions.service import SubmissionService
@@ -24,7 +25,7 @@ def no_store(response: Response) -> None:
 
 
 def get_event_service(session: SessionDependency, auth: ServiceDependency) -> EventService:
-    return EventService(EventRepository(session), auth)
+    return EventService(EventRepository(session), auth, JudgingService(JudgingRepository(session)))
 
 
 EventServiceDependency = Annotated[EventService, Depends(get_event_service)]
@@ -36,7 +37,9 @@ def get_team_service(
     auth: ServiceDependency,
     settings: SettingsDependency,
 ) -> TeamService:
-    return TeamService(TeamRepository(session), events, auth, settings)
+    return TeamService(
+        TeamRepository(session), events, auth, settings, JudgingService(JudgingRepository(session))
+    )
 
 
 TeamServiceDependency = Annotated[TeamService, Depends(get_team_service)]
@@ -50,8 +53,27 @@ def get_submission_service(
     settings: SettingsDependency,
 ) -> SubmissionService:
     return SubmissionService(
-        SubmissionRepository(session), teams, events, auth, JudgingService(), settings
+        SubmissionRepository(session),
+        teams,
+        events,
+        auth,
+        JudgingService(JudgingRepository(session)),
+        settings,
     )
 
 
 SubmissionServiceDependency = Annotated[SubmissionService, Depends(get_submission_service)]
+
+
+def get_judging_service(
+    session: SessionDependency,
+    teams: TeamServiceDependency,
+    events: EventServiceDependency,
+    auth: ServiceDependency,
+    settings: SettingsDependency,
+    submissions: SubmissionServiceDependency,
+) -> JudgingService:
+    return JudgingService(JudgingRepository(session), teams, events, auth, settings, submissions)
+
+
+JudgingServiceDependency = Annotated[JudgingService, Depends(get_judging_service)]

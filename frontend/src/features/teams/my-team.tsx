@@ -12,6 +12,8 @@ import { FormError } from "@/features/auth/auth-card";
 import { useMyEvents } from "@/features/auth/use-event-roles";
 import { Tabs } from "@/features/events/manage";
 import type { Event, Page, Team, Track } from "@/features/events/types";
+import { MentorNotes, TeamQuestions } from "@/features/mentor/team-support";
+import { TeamResults } from "@/features/results/team-result";
 import { SubmitTab } from "@/features/submissions/submissions";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
@@ -98,32 +100,30 @@ export function MyTeam({ slug }: { slug: string }) {
   const me = t.members.find((m) => m.user.id === user.id);
   if (me?.status === "pending") return <Shell title="Đang chờ vào đội." event={ev}><PendingRequest team={t} userId={user.id} onDone={() => setTeam(null)} /></Shell>;
 
-  const view = <TeamView event={ev} team={t} tracks={tracks.data ?? []} userId={user.id} frozen={frozen} onTeam={setTeam} onReload={reload} />;
+  const started = ev.status === "ongoing" || ev.status === "judging" || ev.status === "closed";
+  const panes: [TeamTab, string, ReactNode][] = [
+    ...(started ? [["submit", "Nộp bài", <SubmitTab key="s" event={ev} team={t} leader={t.leader_id === user.id} />] as [TeamTab, string, ReactNode]] : []),
+    ["team", "Đội & repo", <TeamView key="t" event={ev} team={t} tracks={tracks.data ?? []} userId={user.id} frozen={frozen} onTeam={setTeam} onReload={reload} />],
+    ["questions", "Hỏi mentor", <TeamQuestions key="q" teamId={t.id} mode="member" userId={user.id} isLeader={t.leader_id === user.id} />],
+    ["notes", "Góp ý mentor", <MentorNotes key="n" teamId={t.id} />],
+    // Mỗi vòng công bố riêng nên cuộc thi nhiều vòng còn ongoing vẫn có thể có kết quả
+    ...(started ? [["result", "Kết quả", <TeamResults key="r" eventId={ev.id} teamId={t.id} />] as [TeamTab, string, ReactNode]] : []),
+  ];
   return (
     <Shell title={`${t.name}.`} event={ev}>
-      {ev.status === "ongoing" || ev.status === "judging" || ev.status === "closed" ? (
-        <TeamTabs submit={<SubmitTab event={ev} team={t} leader={t.leader_id === user.id} />}>{view}</TeamTabs>
-      ) : (
-        view
-      )}
+      <TeamTabs panes={panes} />
     </Shell>
   );
 }
 
-function TeamTabs({ submit, children }: { submit: ReactNode; children: ReactNode }) {
-  const [tab, setTab] = useState<"submit" | "team">("submit");
+type TeamTab = "submit" | "team" | "questions" | "notes" | "result";
+
+function TeamTabs({ panes }: { panes: [TeamTab, string, ReactNode][] }) {
+  const [tab, setTab] = useState<TeamTab>(panes[0][0]);
   return (
     <div className="space-y-7">
-      <Tabs<"submit" | "team">
-        label="Đội của tôi"
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          ["submit", "Nộp bài"],
-          ["team", "Đội & repo"],
-        ]}
-      />
-      {tab === "submit" ? submit : children}
+      <Tabs<TeamTab> label="Đội của tôi" value={tab} onChange={setTab} tabs={panes.map(([k, label]) => [k, label])} />
+      {panes.find(([k]) => k === tab)?.[2] ?? panes[0][2]}
     </div>
   );
 }
