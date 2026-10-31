@@ -124,7 +124,7 @@
 - [x] Mentor và đội: câu hỏi, câu trả lời, đánh dấu giải quyết; note ghi tiến độ; panel commit/AI hiển thị chưa sẵn sàng khi Phase 5–6 chưa có.
 - [x] Judge tự lưu có expected_revision; khi conflict không tự retry ghi đè. BTC có luồng thu hồi công bố → sửa → công bố revision mới; public ẩn kết quả khi bị thu hồi.
 
-Trạng thái FE: [ ] — code xong 2026-10-31 (typecheck/lint/build xanh; trang công khai SSR thử với vòng chưa công bố và slug sai). Chưa nghiệm thu trình duyệt các luồng cần đăng nhập (BTC/judge/mentor/thí sinh/admin) và trọn vòng draft → closed. API chưa có trạng thái khóa/công bố của vòng nên màn BTC luôn hiện đủ 4 nút Khóa/Mở khóa/Công bố/Thu hồi và dựa vào lỗi server; đề nghị BE thêm `locked_at`, `published_at` vào `judging-progress` hoặc round.
+Trạng thái FE: [ ] — code xong 2026-10-31 (typecheck/lint/build xanh; trang công khai SSR thử với vòng chưa công bố và slug sai). BE đã thêm `locked_at`, `published_at` vào `judging-progress`; FE cần sinh lại type và dùng metadata này thay cho việc luôn hiện đủ bốn nút. Kết quả nghiệm thu trình duyệt và phạm vi còn lại xem phần bổ sung bên dưới; chưa đánh dấu nghiệm thu toàn bộ FE.
 
 ## Xong khi
 
@@ -155,5 +155,40 @@ Ngày 2026-10-31: đã triển khai 34 operation Phase 4, tổng OpenAPI hiện 
 - Ruff lint/format xanh; toàn bộ backend có **168 test qua, 5 bỏ qua** ở SQLite. Migration upgrade/downgrade/check được kiểm tra trong test migration. Phase 4: 12 test qua PostgreSQL (gồm row lock/stale draft và worker biên nhận), 11 qua SQLite/1 bỏ qua vì cần row lock; các guard `/me/*` đã kiểm tra lại sau lượt rà soát cuối. Redis local đã kiểm tra write/read và cô lập key theo revision.
 - Test bao phủ công thức/tie/track, bản cuối được ghim, phân quyền Admin/Judge/member, điểm thiếu/ngoài giới hạn/trùng tiêu chí, phân công thiếu hoặc lặp, conflict muộn/cancel/thay judge, unpublish/unlock/reopen/republish, đóng event, vòng nguồn bị thu hồi, mentor bị gỡ, Q&A/pending/rate limit và email không gửi trùng.
 - Chưa nghiệm thu frontend/trình duyệt, demo thật đủ hai vòng và SMTP/inbox. Test worker dùng mailer giả lập, không phải bằng chứng provider nhận hoặc người dùng nhận thư. Worker/Beat đang chạy phiên cũ cần restart để nạp task mới. Backend API không được tự bật trong lượt này; PostgreSQL/Redis local đang chạy để kiểm thử.
+
+Trạng thái FE: [ ]
+
+## Bổ sung trạng thái vòng trong judging-progress (2026-10-31)
+
+- Response dùng schema `JudgingProgress`, giữ nguyên `items`/`total`, thêm `locked_at: string|null`, `published_at: string|null`. Timestamp theo UTC, ví dụ `2026-10-31T15:50:00Z`. Không đổi DB hoặc quyền organizer. GET không tự tạo bản ghi `round_judging`; vòng mới trả cả hai trường null. Metadata vẫn có khi items rỗng do phân trang.
+- FE chạy lại `npm run gen:api`. Trong `ProgressPanel`, query giữ toàn bộ `.data`; render bảng từ `.data.items` và đọc timestamp ở cấp `.data`, không tìm trong từng đội. Sau lock/unlock/publish/unpublish tiếp tục invalidate query `progress` để tải trạng thái mới từ server.
+
+| Trạng thái response | Nút BTC hiển thị |
+| --- | --- |
+| `locked_at=null`, `published_at=null` | Khóa điểm |
+| `locked_at!=null`, `published_at=null` | Mở khóa, Công bố |
+| `published_at!=null` | Thu hồi công bố |
+| Event closed hoặc archived | Chỉ đọc, không hiện thao tác thay đổi |
+
+- Không suy đoán trạng thái khi query chưa tải xong hoặc lỗi; disable thao tác. Các điều kiện đủ điểm, xung đột và quyền vẫn do server kiểm tra sau khi bấm nút.
+- Kiểm tra thay đổi: toàn bộ `tests/test_judging.py` qua SQLite (12 passed, 1 skipped vì row lock); hai test metadata/vòng sửa công bố qua PostgreSQL. Bao gồm null ban đầu, UTC, giữ locked_at khi unpublish, xóa khi unlock, publish lại, pagination rỗng, quyền và `Cache-Control: no-store`. Ruff lint/format xanh. API cổng 8000 đã restart và OpenAPI thật trỏ tới `JudgingProgress`.
+
+### Nghiệm thu trình duyệt có đăng nhập
+
+Đã chạy bằng Chrome DevTools trên FE `localhost:3000` và API `localhost:8000`, với bốn context riêng: BTC, hai judge và thí sinh; guest ở context riêng. Do chưa có mật khẩu demo, không reset `demo.organizer@example.com`; tạo một fixture local riêng, không ghi mật khẩu vào repo. Fixture ban đầu (tài khoản verified/role, event open, round, đội approved) được tạo trong một transaction DB có audit `browser_fixture.created`; không coi bước chuẩn bị này là bằng chứng UI tạo/duyệt cuộc thi.
+
+- Cuộc thi: `SEAL Phase 4 Browser Acceptance`, slug `phase4-browser-20261031`, event ID `203b016e-e531-4b65-9697-9df0a7167b82`; vòng `cdc6a092-309d-41d5-8521-9a20b39705ce`. Dữ liệu được giữ lại để tra cứu tại `/events/phase4-browser-20261031/results`.
+- Từ UI: BTC soạn/lưu rubric 100%, chuyển open → ongoing đúng giờ server; thí sinh nộp repo public thật và nhận v1 `eeefc54d-7b6b-4911-a260-c91ff09ed9c8`, commit bắt đầu `f4bcfaba7c85`. Chờ deadline thật `2026-10-31T15:46:14.983943Z`, không chỉnh giờ hay chèn điểm/bài nộp vào DB.
+- Qua hạn: BTC auto tạo hai phân công; hai judge thấy cùng bản v1 đã ghim, lưu nháp và xác nhận lần lượt 8/10, 9/10. Tiến độ ghi assigned=2/submitted=2/missing=0, trung bình tiêu chí 8.50, tổng 85.00, hạng 1.
+- Khóa → công bố trả 204. Network `judging-progress` ghi `locked_at=2026-10-31T15:48:11.499131Z`, `published_at=2026-10-31T15:48:29.605759Z`; guest thấy 85.00 sau công bố, trước đó không thấy bảng điểm.
+- Thu hồi → mở khóa cũng thao tác qua UI: public trở lại “Chưa có vòng nào công bố kết quả”; progress sau thu hồi giữ locked_at và xóa published_at, sau mở khóa trả cả hai null. Khóa/công bố lại tạo revision 2, giữ 85.00; thí sinh xem được điểm và nhận xét ẩn danh. Sau cùng BTC chuyển judging → closed qua UI thành công.
+- Đối chiếu DB chỉ đọc: event đã closed, hai snapshot revision 1/2 còn nguyên, audit có rubric/assignments/lock/publish/unpublish/unlock/transition. Hai biên nhận email đang `pending`; chưa xác nhận worker gửi thư, SMTP acceptance hoặc inbox.
+
+### Việc FE còn phải xử lý trước khi nghiệm thu toàn bộ
+
+1. Sinh lại API type và giữ metadata progress; hiện tại `ProgressPanel` vẫn lấy `.data.items` nên luôn hiện bốn nút, kể cả khi event closed. Dùng bảng trạng thái ở trên và event status/archived để ẩn thao tác không phù hợp.
+2. Tab Phân công mở trước deadline không tự cập nhật nút khi đồng hồ qua hạn; đã quan sát nút vẫn disabled sau deadline, đổi tab rồi quay lại mới bật. Cần timer/re-render dựa giờ server khi qua mốc thời gian.
+3. Tab Kết quả của thí sinh hiện chỉ mở khi event judging/closed. Kết quả vòng đã công bố khi event còn ongoing (nhiều vòng) cần được tra cứu độc lập theo publication của vòng.
+4. Chưa nghiệm thu UI mentor/admin, cuộc thi hai vòng có đội bị loại, stale draft/conflict/reopen trên trình duyệt, và SMTP/inbox. Các test API tương ứng trước đây không thay cho bằng chứng UI.
 
 Trạng thái FE: [ ]
