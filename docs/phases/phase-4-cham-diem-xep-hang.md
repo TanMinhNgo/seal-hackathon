@@ -46,7 +46,7 @@
 
 | Method | Path | Quyền | Body → Response |
 | --- | --- | --- | --- |
-| GET | `/events/{event_id}/rounds/{round_id}/judging-progress` | organizer | `?limit&offset` → `{items: [{team, required, assigned, submitted, missing, has_conflict}], total}` |
+| GET | `/events/{event_id}/rounds/{round_id}/judging-progress` | organizer | `?limit&offset` → `{items: [{team, required, assigned, submitted, missing, has_conflict, status}], total, locked_at, published_at}` |
 | POST | `/events/{event_id}/rounds/{round_id}/lock` | organizer | → 204 (mọi đội có bài hợp lệ đủ required_judges, các phân công còn hiệu lực đều submitted, không còn conflict) |
 | POST | `/events/{event_id}/rounds/{round_id}/unlock` | organizer | `{reason}` → 204 |
 | GET | `/events/{event_id}/rounds/{round_id}/leaderboard` | organizer; admin sau khóa; public sau công bố | `?track_id&limit&offset` → `{items: LeaderboardRow[], total, publication_revision}` |
@@ -58,6 +58,10 @@
 
 - `MentorNote`: `{id, team_id, mentor: UserBrief, content, commit_sha, kind, progress_status, created_at}`; kind=`feedback|progress` mặc định feedback, progress_status=`on_track|at_risk|blocked` bắt buộc khi kind=progress, null khi feedback. `commit_sha` null nếu góp ý chung; chỉ nhận commit đã lưu đúng đội khi Phase 5 sẵn sàng. Góp ý không sửa/xóa sau gửi; tiến độ mới là note mới, trạng thái gần nhất dùng cho dashboard.
 - `LeaderboardRow`: `{rank, team: {id, name, track_id}, total, criteria: [{criterion_id, avg}], tied}`
+- `judging-progress.items[]` bổ sung `status: not_submitted|pending|complete` để BTC phân biệt đội không nộp với đội chưa chấm. Save/detail trả thêm `general_comment: string|null` để tải lại nháp đầy đủ.
+- `judging-progress.locked_at` và `published_at` là timestamp UTC nullable ở cấp response, độc lập phân trang. Vòng chưa khóa/công bố trả null, kể cả chưa có bản ghi chấm. Unpublish chỉ xóa published_at; unlock xóa locked_at. FE dùng hai trường này để hiện nút phù hợp và refetch sau thao tác; quyền/điều kiện nghiệp vụ vẫn do server kiểm tra.
+- Thu hồi công bố vòng nguồn trả `409 RESOURCE_IN_USE` nếu vòng sau đã bắt đầu và đang tham chiếu nguồn này. Khi vòng sau chưa bắt đầu, danh sách đã chọn được giữ để BTC đối chiếu nhưng không có hiệu lực nộp/chấm cho đến khi nguồn được công bố lại.
+- Lỗi bổ sung: `RUBRIC_ORDER_INVALID`, `DEADLINE_NOT_PASSED`, `RUBRIC_REQUIRED`, `JUDGE_COUNT_MISMATCH`, `ASSIGNMENT_CANCELLED`, `SCORES_NOT_LOCKED`, `RESULT_NOT_FOUND`, `COMMIT_NOT_FOUND`, `EVENT_NOT_OPEN`; các lỗi đầu vào rubric/count/commit trả 422, điều kiện nghiệp vụ trả 409, result không tồn tại trả 404.
 - publication_revision là số nguyên bắt đầu 0, tăng mỗi lần publish phiên bản mới. Batch scores/save/submit/reopen phản hồi chỉ điểm của phân công đó; không nhúng điểm của người khác.
 - Công thức: điểm đội = trung bình giữa các giám khảo của `Σ(score/max_score × weight)`, thang 100, làm tròn 2 chữ số.
 - Đồng điểm: so lần lượt avg tiêu chí theo weight giảm dần/order tăng dần, rồi thời điểm nộp bản cuối sớm hơn; vẫn bằng nhau thì cùng hạng. Quy tắc làm tròn và kiểu hạng ghi tại "Điều kiện chấm và sửa kết quả".
@@ -89,41 +93,67 @@
 
 ## Backend (Codex)
 
-- [ ] Module `judging`: model `rubric_criteria`, `conflicts`, `assignments`, `scores`, `mentor_assignments`, `mentor_notes`.
-- [ ] Validate tổng trọng số = 100; điểm trong `[0, max_score]`.
-- [ ] Giám khảo không đọc được điểm của giám khảo khác trước khi khóa (kiểm tra trong service).
-- [ ] Phân công tự động: chia đều, bỏ cặp xung đột, không phân công trùng.
-- [ ] Mọi thay đổi điểm sau xác nhận (reopen, unlock) ghi audit log.
-- [ ] Module `ranking`: tính bảng xếp hạng theo công thức trên, cache Redis, xóa cache khi khóa/mở/sửa điểm.
-- [ ] Publish: đặt cờ đã công bố, gửi email kết quả qua worker.
-- [ ] `mentor_notes` có `commit_sha` (nullable, index `(team_id, commit_sha)`).
-- [ ] Admin đọc result/leaderboard chỉ sau khi vòng đã khóa; admin gọi chấm, phân công, khóa, công bố, ghi góp ý → 403.
-- [ ] Test: admin đọc result trước khóa → 403, sau khóa → 200; công thức điểm, đồng điểm, giám khảo xem điểm người khác (403), chấm bài không được phân công (403), xung đột lợi ích.
-- [ ] Dùng events service quản lý round eligibility đã tạo Phase 2; migration assignment submission_id/revision/cancelled, publication snapshots/revision; khóa khi đủ judge cho từng đội, xử lý conflict muộn và sửa công bố theo transaction/audit.
-- [ ] Mentor assignment GET/DELETE; note tiến độ; models mentor_questions/mentor_answers, API hỏi/đáp và rate limit; Phase 4 chạy được không có commit/AI.
-- [ ] Nối quyền đọc team cho mentor/judge qua phân công thực tế; thay guard thu hồi role đang ongoing/judging của Phase 2 bằng kiểm tra assignment còn hiệu lực. Nối điều kiện judging → closed với snapshot kết quả đã công bố, thay RESULTS_NOT_READY mặc định của Phase 2.
-- [ ] Test: zero assignments không khóa được; đổi ID round/team chéo event, chấm phiên bản cũ đúng snapshot, xung đột mentor-judge, nháp stale, unpublish/unlock/reopen/republish, đội không qua vòng không nộp được; mentor bị gỡ không đọc bài/Q&A.
+- [x] Module `judging`: model `rubric_criteria`, `conflicts`, `assignments`, `scores`, `mentor_assignments`, `mentor_notes`.
+- [x] Validate tổng trọng số = 100; điểm trong `[0, max_score]`.
+- [x] Giám khảo không đọc được điểm của giám khảo khác trước khi khóa (kiểm tra trong service).
+- [x] Phân công tự động: chia đều, bỏ cặp xung đột, không phân công trùng.
+- [x] Mọi thay đổi điểm sau xác nhận (reopen, unlock) ghi audit log.
+- [x] Module `ranking`: tính bảng xếp hạng theo công thức trên, cache Redis, xóa cache khi khóa/mở/sửa điểm.
+- [x] Publish: đặt cờ đã công bố, gửi email kết quả qua worker.
+- [x] `mentor_notes` có `commit_sha` (nullable, index `(team_id, commit_sha)`).
+- [x] Admin đọc result/leaderboard chỉ sau khi vòng đã khóa; admin gọi chấm, phân công, khóa, công bố, ghi góp ý → 403.
+- [x] Test: admin đọc result trước khóa → 403, sau khóa → 200; công thức điểm, đồng điểm, giám khảo xem điểm người khác (403), chấm bài không được phân công (403), xung đột lợi ích.
+- [x] Dùng events service quản lý round eligibility đã tạo Phase 2; migration assignment submission_id/revision/cancelled, publication snapshots/revision; khóa khi đủ judge cho từng đội, xử lý conflict muộn và sửa công bố theo transaction/audit.
+- [x] Mentor assignment GET/DELETE; note tiến độ; models mentor_questions/mentor_answers, API hỏi/đáp và rate limit; Phase 4 chạy được không có commit/AI.
+- [x] Nối quyền đọc team cho mentor/judge qua phân công thực tế; thay guard thu hồi role đang ongoing/judging của Phase 2 bằng kiểm tra assignment còn hiệu lực. Nối điều kiện judging → closed với snapshot kết quả đã công bố, thay RESULTS_NOT_READY mặc định của Phase 2.
+- [x] Test: zero assignments không khóa được; đổi ID round/team chéo event, chấm phiên bản cũ đúng snapshot, xung đột mentor-judge, nháp stale, unpublish/unlock/reopen/republish, đội không qua vòng không nộp được; mentor bị gỡ không đọc bài/Q&A.
 
 ## Frontend (Claude)
 
-- [ ] BTC – editor rubric: thêm/xóa/sắp xếp tiêu chí, hiển thị tổng trọng số realtime, chặn lưu khi ≠ 100.
-- [ ] BTC – màn phân công: ma trận giám khảo × đội, nút tự động phân công, đánh dấu cặp xung đột.
-- [ ] BTC – tiến độ chấm, nút khóa/mở khóa (nhập lý do), xem bảng xếp hạng, nút công bố có xác nhận.
-- [ ] BTC – phân công mentor.
-- [ ] Giám khảo `/judge`: danh sách bài được giao, trạng thái từng bài; khai báo xung đột lợi ích.
-- [ ] Giám khảo – màn chấm: bên trái thông tin bài nộp (link, file), bên phải form rubric; tự lưu nháp; nút xác nhận có cảnh báo không sửa được.
-- [ ] Mentor `/mentor`: danh sách đội, ghi góp ý (chọn gắn vào commit nào).
-- [ ] Admin `/admin/teams/[id]`: tab Góp ý mentor (lọc theo commit) và tab Kết quả chấm (chỉ hiện khi vòng đã khóa).
-- [ ] Trang công khai `/events/[slug]/results` (SSR): bảng xếp hạng theo vòng/track, đánh dấu đồng hạng.
-- [ ] Thí sinh: xem điểm từng tiêu chí và nhận xét của đội sau công bố.
-- [ ] BTC quản lý đội qua vòng, thu hồi/thay mentor và judge; AssignmentBatch hiển thị skipped/unfilled thay vì báo hoàn tất chung.
-- [ ] Mentor và đội: câu hỏi, câu trả lời, đánh dấu giải quyết; note ghi tiến độ; panel commit/AI hiển thị chưa sẵn sàng khi Phase 5–6 chưa có.
-- [ ] Judge tự lưu có expected_revision; khi conflict không tự retry ghi đè. BTC có luồng thu hồi công bố → sửa → công bố revision mới; public ẩn kết quả khi bị thu hồi.
+- [x] BTC – editor rubric: thêm/xóa/sắp xếp tiêu chí, hiển thị tổng trọng số realtime, chặn lưu khi ≠ 100.
+- [x] BTC – màn phân công: ma trận giám khảo × đội, nút tự động phân công, đánh dấu cặp xung đột.
+- [x] BTC – tiến độ chấm, nút khóa/mở khóa (nhập lý do), xem bảng xếp hạng, nút công bố có xác nhận.
+- [x] BTC – phân công mentor.
+- [x] Giám khảo `/judge`: danh sách bài được giao, trạng thái từng bài; khai báo xung đột lợi ích.
+- [x] Giám khảo – màn chấm: bên trái thông tin bài nộp (link, file), bên phải form rubric; tự lưu nháp; nút xác nhận có cảnh báo không sửa được.
+- [x] Mentor `/mentor`: danh sách đội, ghi góp ý (chọn gắn vào commit nào).
+- [x] Admin `/admin/teams/[id]`: tab Góp ý mentor (lọc theo commit) và tab Kết quả chấm (chỉ hiện khi vòng đã khóa).
+- [x] Trang công khai `/events/[slug]/results` (SSR): bảng xếp hạng theo vòng/track, đánh dấu đồng hạng.
+- [x] Thí sinh: xem điểm từng tiêu chí và nhận xét của đội sau công bố.
+- [x] BTC quản lý đội qua vòng, thu hồi/thay mentor và judge; AssignmentBatch hiển thị skipped/unfilled thay vì báo hoàn tất chung.
+- [x] Mentor và đội: câu hỏi, câu trả lời, đánh dấu giải quyết; note ghi tiến độ; panel commit/AI hiển thị chưa sẵn sàng khi Phase 5–6 chưa có.
+- [x] Judge tự lưu có expected_revision; khi conflict không tự retry ghi đè. BTC có luồng thu hồi công bố → sửa → công bố revision mới; public ẩn kết quả khi bị thu hồi.
 
-Trạng thái FE: [ ]
+Trạng thái FE: [ ] — code xong 2026-10-31 (typecheck/lint/build xanh; trang công khai SSR thử với vòng chưa công bố và slug sai). Chưa nghiệm thu trình duyệt các luồng cần đăng nhập (BTC/judge/mentor/thí sinh/admin) và trọn vòng draft → closed. API chưa có trạng thái khóa/công bố của vòng nên màn BTC luôn hiện đủ 4 nút Khóa/Mở khóa/Công bố/Thu hồi và dựa vào lỗi server; đề nghị BE thêm `locked_at`, `published_at` vào `judging-progress` hoặc round.
 
 ## Xong khi
 
 - Chạy trọn một cuộc thi thử từ `draft` đến `closed` chỉ trên SEAL.
 - Test BE về điểm, đồng điểm, quyền xem điểm pass.
 - Bảng xếp hạng công khai chỉ hiện sau khi công bố.
+
+## Bàn giao backend Phase 4
+
+Ngày 2026-10-31: đã triển khai 34 operation Phase 4, tổng OpenAPI hiện có 97 operation. Migration `0006_judging` thêm 11 bảng, đã upgrade PostgreSQL local và `alembic check` không drift. Không thêm dependency hoặc biến môi trường. Không sửa frontend, không commit/push.
+
+### Hành vi và dữ liệu FE cần nối
+
+- Khởi động API rồi chạy `npm run gen:api` ở frontend. Dùng schema OpenAPI cho rubric, assignment, score, leaderboard, mentor và hỏi/đáp. Decimal được trả bằng chuỗi JSON; UI chuyển sang số khi cần hiển thị, không tự tính điểm chính thức.
+- Tạo rubric trước `round.starts_at`, tổng weight đúng 100, order không lặp. Sau deadline mới phân công; auto dùng đúng `round.required_judges`. Response batch phải hiển thị cả `skipped` và `unfilled`, kể cả HTTP 200.
+- Assignment ghim bản cuối hợp lệ qua `submission_id`; không tự đổi theo lần tải bài mới nhất. Form chấm lấy `general_comment` từ detail, lưu toàn bộ danh sách nháp kèm `expected_revision`; save/submit trả revision mới. Gặp `SCORE_VERSION_CONFLICT` phải tải lại và cho người dùng đối chiếu, không retry ghi đè.
+- `judging-progress.status` phân biệt `not_submitted`, `pending`, `complete`; `missing = max(0, required - submitted)`. `has_conflict` cũng bật khi judge không còn đủ điều kiện tài khoản/role. Đội không có bài hợp lệ không có hạng. Không được khóa một tập bài/phân công rỗng.
+- BTC kiểm tra điểm trước công bố; Admin chỉ đọc điểm sau khóa, không gọi API vận hành. Judge chỉ đọc phân công của mình, kể cả sau khóa; participant chỉ lấy result của đội active sau công bố. Public leaderboard không có email, nhận xét hay điểm riêng từng judge.
+- Sửa kết quả: unpublish → unlock → reopen → save/submit → lock → publish. Mọi bước ghi audit trong cùng transaction; mỗi publish mới tăng revision và giữ snapshot cũ. Nút publish lại cùng revision không tạo thêm email.
+- `eligible-teams` vòng đầu mặc định đội approved. Vòng sau BTC chọn từ đội có kết quả công bố ở vòng nguồn trước đó. Khi nguồn bị thu hồi, GET vẫn giữ lựa chọn để đối chiếu nhưng quyền nộp/chấm tạm dừng; chặn thu hồi nếu vòng phụ thuộc đã bắt đầu. Đổi danh sách trước start có audit và email báo leader bị ảnh hưởng.
+- Mentor dùng `/me/mentoring` và phân công hiện tại. Thu hồi phân công làm mất quyền đọc bài, đội riêng, note/Q&A ngay; giữ note, câu trả lời và lịch sử từng hỗ trợ để tránh xung đột chấm. Note không sửa/xóa; lấy note `kind=progress` mới nhất theo `created_at` để hiển thị tiến độ. Danh sách note/question/answer mặc định mới nhất trước, có limit/offset.
+- Hỏi/đáp chỉ ghi khi event open/ongoing; member pending và judge không đọc được. Gửi câu hỏi/trả lời dùng chung giới hạn 30 request/phút/user; xử lý 429, 503, `QUESTION_RESOLVED`. Notes tiến độ yêu cầu `progress_status`; feedback phải null. Phase 5 chưa có: gửi `commit_sha=null`; SHA khác null trả 422 `COMMIT_NOT_FOUND`. Ẩn/vô hiệu hóa panel commit/AI chưa có API.
+- Tất cả response Phase 4 có `Cache-Control: no-store`. Cache Redis nội bộ dùng revision tăng khi thay đổi phân công/điểm/khóa/công bố; key cũ không còn được đọc và hết hạn sau 300 giây. Redis lỗi thì tính từ DB; quyền và cờ công bố luôn kiểm tra trước cache.
+
+### Worker và kiểm chứng
+
+- Chạy worker và **một** Celery Beat theo hướng dẫn runtime hiện tại. Task `seal.result_emails` chạy mỗi 60 giây, tối đa 100 email/lượt. Biên nhận `result_emails` được tạo cùng transaction publish, unique theo snapshot/user; worker claim trước khi gửi và chỉ lấy revision còn công bố. Trạng thái `sending`/`failed` cần đối chiếu SMTP trước khi gửi thủ công, không tự retry thư có kết quả mơ hồ.
+- Ruff lint/format xanh; toàn bộ backend có **168 test qua, 5 bỏ qua** ở SQLite. Migration upgrade/downgrade/check được kiểm tra trong test migration. Phase 4: 12 test qua PostgreSQL (gồm row lock/stale draft và worker biên nhận), 11 qua SQLite/1 bỏ qua vì cần row lock; các guard `/me/*` đã kiểm tra lại sau lượt rà soát cuối. Redis local đã kiểm tra write/read và cô lập key theo revision.
+- Test bao phủ công thức/tie/track, bản cuối được ghim, phân quyền Admin/Judge/member, điểm thiếu/ngoài giới hạn/trùng tiêu chí, phân công thiếu hoặc lặp, conflict muộn/cancel/thay judge, unpublish/unlock/reopen/republish, đóng event, vòng nguồn bị thu hồi, mentor bị gỡ, Q&A/pending/rate limit và email không gửi trùng.
+- Chưa nghiệm thu frontend/trình duyệt, demo thật đủ hai vòng và SMTP/inbox. Test worker dùng mailer giả lập, không phải bằng chứng provider nhận hoặc người dùng nhận thư. Worker/Beat đang chạy phiên cũ cần restart để nạp task mới. Backend API không được tự bật trong lượt này; PostgreSQL/Redis local đang chạy để kiểm thử.
+
+Trạng thái FE: [ ]

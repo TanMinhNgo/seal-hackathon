@@ -87,7 +87,7 @@ const MESSAGES: Record<string, string> = {
   RESOURCE_CONFLICT: "Dữ liệu bị trùng (ví dụ đường dẫn cuộc thi đã có).",
   RESOURCE_IN_USE: "Mục này đang được dùng nên chưa xóa hay sửa được.",
   RESOURCE_NOT_FOUND: "Không tìm thấy dữ liệu.",
-  RESULTS_NOT_READY: "Chưa đóng được cuộc thi: kết quả chưa công bố (Phase 4).",
+  RESULTS_NOT_READY: "Chưa đóng được cuộc thi: còn vòng chưa công bố kết quả.",
   ROLE_CONFLICT: "Vai trò xung đột: người này đã có vai trò khác trong cuộc thi.",
   ROLE_IN_USE: "Người này đang có phân công nên chưa gỡ được vai trò.",
   ROLE_NOT_FOUND: "Không tìm thấy vai trò.",
@@ -112,6 +112,31 @@ const MESSAGES: Record<string, string> = {
   FILE_NOT_UPLOADED: "File chưa tải lên xong hoặc đã dùng cho lần nộp khác. Hãy chọn và tải lại file.",
   STORAGE_NOT_CONFIGURED: "Máy chủ chưa cấu hình nơi lưu file.",
   STORAGE_UNAVAILABLE: "Kho lưu file đang không phản hồi, hãy thử lại sau.",
+  RUBRIC_WEIGHT_INVALID: "Tổng trọng số phải đúng 100 và điểm tối đa phải lớn hơn 0.",
+  RUBRIC_ORDER_INVALID: "Thứ tự tiêu chí bị trùng.",
+  RUBRIC_REQUIRED: "Vòng này chưa có rubric.",
+  ROUND_ALREADY_STARTED: "Vòng đã bắt đầu, không sửa được rubric hoặc danh sách đội nữa.",
+  DEADLINE_NOT_PASSED: "Chưa hết hạn nộp nên chưa phân công chấm được.",
+  JUDGE_COUNT_MISMATCH: "Số giám khảo mỗi đội phải đúng cấu hình của vòng.",
+  CONFLICT_OF_INTEREST: "Có xung đột lợi ích giữa giám khảo và đội này.",
+  ALREADY_ASSIGNED: "Giám khảo đã được giao đội này.",
+  JUDGES_FULL: "Đội đã đủ số giám khảo.",
+  NOT_SUBMITTED: "Đội không có bài hợp lệ để chấm.",
+  ASSIGNMENT_NOT_FOUND: "Không tìm thấy phân công.",
+  ASSIGNMENT_SUBMITTED: "Bài đã được xác nhận điểm, không sửa được nữa.",
+  ASSIGNMENT_CANCELLED: "Phân công đã bị hủy.",
+  SCORE_OUT_OF_RANGE: "Điểm nằm ngoài khoảng cho phép của tiêu chí.",
+  SCORE_VERSION_CONFLICT: "Bản nháp đã thay đổi ở tab hoặc thiết bị khác.",
+  SCORES_LOCKED: "Điểm của vòng đã khóa.",
+  SCORES_NOT_LOCKED: "Phải khóa điểm trước khi công bố.",
+  SCORING_INCOMPLETE: "Chưa khóa được: còn đội thiếu giám khảo, còn bài chưa xác nhận hoặc còn xung đột.",
+  RESULTS_PUBLISHED: "Kết quả đang công bố: thu hồi công bố trước.",
+  NOT_PUBLISHED: "Kết quả chưa được công bố.",
+  RESULT_NOT_FOUND: "Đội không có kết quả ở vòng này.",
+  COMMIT_NOT_FOUND: "Không tìm thấy commit của đội.",
+  EVENT_NOT_OPEN: "Cuộc thi không còn mở cho thao tác này.",
+  QUESTION_NOT_FOUND: "Không tìm thấy câu hỏi.",
+  QUESTION_RESOLVED: "Câu hỏi đã được đánh dấu giải quyết.",
 };
 
 type Presign = components["schemas"]["PresignOutput"];
@@ -130,6 +155,8 @@ export async function uploadToStorage(teamId: string, file: File, contentType: s
 export function errorCode(error: unknown): string | undefined {
   return isAxiosError<{ code?: string }>(error) ? error.response?.data?.code : undefined;
 }
+
+export const codeMessage = (code: string) => MESSAGES[code] ?? code;
 
 export function errorMessage(error: unknown): string {
   if (isAxiosError(error) && !error.response) return "Không kết nối được máy chủ.";
