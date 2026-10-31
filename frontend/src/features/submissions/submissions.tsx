@@ -57,7 +57,7 @@ function RoundSelect({ rounds, value, onChange }: { rounds: Round[]; value: stri
 }
 
 /** Chọn vòng rồi hiện nội dung theo vòng; dùng chung cho thí sinh, BTC, admin. */
-function WithRound({ eventId, children }: { eventId: string; children: (round: Round) => ReactNode }) {
+export function WithRound({ eventId, children }: { eventId: string; children: (round: Round) => ReactNode }) {
   const rounds = useRounds(eventId);
   const [picked, setPicked] = useState("");
   if (rounds.isError) return <FormError>{errorMessage(rounds.error)}</FormError>;
@@ -157,7 +157,7 @@ function History({ teamId, roundId }: { teamId: string; roundId: string }) {
   );
 }
 
-/** Hồ sơ bài nộp chỉ đọc theo vòng (admin; mentor/judge nối ở Phase 4). */
+/** Hồ sơ bài nộp chỉ đọc theo vòng (admin, mentor được phân công). */
 export function TeamSubmissions({ eventId, teamId }: { eventId: string; teamId: string }) {
   return <WithRound eventId={eventId}>{(r) => <History key={r.id} teamId={teamId} roundId={r.id} />}</WithRound>;
 }

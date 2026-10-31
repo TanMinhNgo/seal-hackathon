@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -140,15 +140,41 @@ class EventRepository:
             await self.session.rollback()
             raise ApiError(409, "RESOURCE_IN_USE", "Resource is still referenced") from None
 
-    async def eligible(self, round_id: UUID, team_id: UUID) -> bool:
+    async def commit(self) -> None:
+        await self.session.commit()
+
+    async def eligibility_sources(self, round_id: UUID) -> dict[UUID, UUID | None]:
+        return dict(
+            (
+                await self.session.execute(
+                    select(RoundEligibility.team_id, RoundEligibility.source_round_id).where(
+                        RoundEligibility.round_id == round_id
+                    )
+                )
+            ).all()
+        )
+
+    async def replace_eligibility(
+        self, round_id: UUID, source_id: UUID, team_ids: list[UUID]
+    ) -> None:
+        await self.session.execute(
+            delete(RoundEligibility).where(RoundEligibility.round_id == round_id)
+        )
+        self.session.add_all(
+            [
+                RoundEligibility(round_id=round_id, source_round_id=source_id, team_id=t)
+                for t in team_ids
+            ]
+        )
+        await self.session.flush()
+
+    async def has_started_dependents(self, source_id: UUID, now: datetime) -> bool:
         return (
             await self.session.scalar(
-                select(RoundEligibility.id).where(
-                    RoundEligibility.round_id == round_id, RoundEligibility.team_id == team_id
-                )
+                select(RoundEligibility.id)
+                .join(Round, Round.id == RoundEligibility.round_id)
+                .where(RoundEligibility.source_round_id == source_id, Round.starts_at <= now)
+                .limit(1)
             )
             is not None
         )
-
-    async def commit(self) -> None:
-        await self.session.commit()

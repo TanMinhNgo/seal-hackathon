@@ -19,7 +19,7 @@ const TEAM_STATUS: Record<string, string> = { pending: "chờ duyệt", approved
 /** Việc chính của người dùng trong một cuộc thi, theo vai trò quan trọng nhất ở cuộc thi đó. */
 function action({ event, roles, team }: MyEvent): [string, string] {
   if (roles.includes("organizer")) return [`/manage/events/${event.id}`, "Vận hành cuộc thi"];
-  if (roles.includes("judge")) return ["/judge", "Vào chấm điểm"];
+  if (roles.includes("judge")) return [`/judge?event=${event.id}`, "Vào chấm điểm"];
   if (roles.includes("mentor")) return ["/mentor", "Khu mentor"];
   return [`/events/${event.slug}/my-team`, team ? "Đội của tôi" : "Lập đội / vào đội"];
 }

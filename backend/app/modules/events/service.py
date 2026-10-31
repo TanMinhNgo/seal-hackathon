@@ -37,9 +37,12 @@ class EventService:
     def reminder_rounds(session: object, now: datetime) -> list[tuple[object, set[UUID] | None]]:
         return EventRepository.reminder_rounds(session, now)
 
-    def __init__(self, repository: EventRepository, auth: AuthService) -> None:
+    def __init__(
+        self, repository: EventRepository, auth: AuthService, judging: object = None
+    ) -> None:
         self.repository = repository
         self.auth = auth
+        self.judging = judging
 
     async def get(self, event_id: UUID, *, lock: bool = False) -> Event:
         event = await self.repository.get(event_id, lock=lock)
@@ -335,8 +338,7 @@ class EventService:
             raise ApiError(403, "FORBIDDEN", "Role cannot be revoked by this actor")
         if entry.role == "organizer":
             await self.require_other_organizer(event_id, entry.user_id)
-        elif event.status in {"ongoing", "judging"}:
-            # shortcut: Phase 4 thay chặn theo trạng thái bằng kiểm tra phân công đang dùng.
+        elif self.judging and await self.judging.role_in_use(event_id, entry.user_id, entry.role):
             raise ApiError(409, "ROLE_IN_USE", "Resolve assignments before revoking this role")
         await self.auth.revoke_role(role_id)
         await self.log(
@@ -414,7 +416,21 @@ class EventService:
 
     async def submission_eligible(self, round_: object, team_id: UUID) -> bool:
         rounds = await self.rounds(round_.event_id)
-        return round_.id == rounds[0].id or await self.repository.eligible(round_.id, team_id)
+        if round_.id == rounds[0].id:
+            return True
+        source = (await self.eligibility_sources(round_.id)).get(team_id)
+        return bool(source and self.judging and await self.judging.results_ready([source]))
+
+    async def eligibility_sources(self, round_id: UUID) -> dict[UUID, UUID | None]:
+        return await self.repository.eligibility_sources(round_id)
+
+    async def replace_eligibility(
+        self, round_id: UUID, source_id: UUID, team_ids: list[UUID]
+    ) -> None:
+        await self.repository.replace_eligibility(round_id, source_id, team_ids)
+
+    async def has_started_dependents(self, source_id: UUID) -> bool:
+        return await self.repository.has_started_dependents(source_id, datetime.now(UTC))
 
     async def update_account(
         self, actor: UserOutput, target_id: UUID, data: AdminUserInput

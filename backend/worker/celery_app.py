@@ -7,7 +7,12 @@ celery_app = Celery(
     "seal",
     broker=str(settings.redis_url),
     backend=str(settings.redis_url),
-    include=["worker.tasks.ping", "worker.tasks.send_email", "worker.tasks.submissions"],
+    include=[
+        "worker.tasks.ping",
+        "worker.tasks.send_email",
+        "worker.tasks.submissions",
+        "worker.tasks.judging",
+    ],
 )
 celery_app.conf.update(
     timezone="UTC",
@@ -20,6 +25,7 @@ celery_app.conf.update(
     task_publish_retry=False,
     beat_scheduler="worker.scheduler:HeartbeatScheduler",
     beat_schedule={
+        "result-emails": {"task": "seal.result_emails", "schedule": 60.0},
         "submission-reminders": {"task": "seal.submission_reminders", "schedule": 60.0},
         "cleanup-uploads": {"task": "seal.cleanup_uploads", "schedule": 3600.0},
     },

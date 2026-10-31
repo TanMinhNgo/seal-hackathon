@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.db import Base
 from app.modules.auth import models  # noqa: F401
 from app.modules.events import models as event_models  # noqa: F401
+from app.modules.judging import models as judging_models  # noqa: F401
 from app.modules.submissions import models as submission_models  # noqa: F401
 from app.modules.teams import models as team_models  # noqa: F401
 

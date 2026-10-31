@@ -58,6 +58,35 @@ class SubmissionJobRepository:
 
 
 class SubmissionRepository:
+    async def get_many(self, ids: list[UUID]) -> list[Submission]:
+        return list(
+            await self.session.scalars(
+                select(Submission)
+                .options(selectinload(Submission.files))
+                .where(Submission.id.in_(ids))
+            )
+        )
+
+    async def finals(self, team_ids: list[UUID], round_id: UUID) -> list[Submission]:
+        latest = (
+            select(Submission.team_id, func.max(Submission.version).label("version"))
+            .where(Submission.round_id == round_id)
+            .group_by(Submission.team_id)
+            .subquery()
+        )
+        return list(
+            await self.session.scalars(
+                select(Submission)
+                .options(selectinload(Submission.files))
+                .join(
+                    latest,
+                    (Submission.team_id == latest.c.team_id)
+                    & (Submission.version == latest.c.version),
+                )
+                .where(Submission.round_id == round_id, Submission.team_id.in_(team_ids))
+            )
+        )
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
