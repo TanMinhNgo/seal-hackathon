@@ -3,11 +3,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { buttonClass } from "@/components/ui/button";
-import { serverNow } from "@/components/ui/countdown";
+import { serverNow, useSecondsLeft } from "@/components/ui/countdown";
 import { LocalTime } from "@/components/ui/local-time";
 import { FormError } from "@/features/auth/auth-card";
-import { Tabs, useTracks } from "@/features/events/manage";
-import type { Assignment, AssignmentBatch, Conflict, LeaderboardData, MentorAssignment, Page, Progress, RoleItem, Round, RoundTeam, Rubric, Team } from "@/features/events/types";
+import { Tabs, useEvent, useTracks } from "@/features/events/manage";
+import type { Assignment, AssignmentBatch, Conflict, JudgingProgress, LeaderboardData, MentorAssignment, Page, Progress, RoleItem, Round, RoundTeam, Rubric, Team } from "@/features/events/types";
 import { FORMULA_NOTE, LeaderboardTable } from "@/features/results/leaderboard-table";
 import { useRounds, WithRound } from "@/features/submissions/submissions";
 import { api, codeMessage, errorMessage } from "@/lib/api";
@@ -290,6 +290,8 @@ function AssignmentsPanel({ eventId, round }: { eventId: string; round: Round })
   const assignments = useQuery({ queryKey: ["assignments", round.id], queryFn: async () => (await api.get<Page<Assignment>>(`/events/${eventId}/rounds/${round.id}/assignments`, ALL)).data.items });
   const conflicts = useQuery({ queryKey: ["conflicts", eventId], queryFn: async () => (await api.get<Page<Conflict>>(`/events/${eventId}/conflicts`, ALL)).data.items });
   const [batch, setBatch] = useState<AssignmentBatch | null>(null);
+  // Đếm theo giờ server để nút phân công tự bật đúng lúc qua hạn nộp
+  const deadlinePassed = useSecondsLeft(round.submission_deadline) === 0;
   const reload = () => Promise.all([queryClient.invalidateQueries({ queryKey: ["assignments", round.id] }), queryClient.invalidateQueries({ queryKey: ["progress", round.id] })]);
   const onBatch = { onSuccess: (b: AssignmentBatch) => setBatch(b), onSettled: reload };
   const auto = useMutation({ mutationFn: async () => (await api.post<AssignmentBatch>(`/events/${eventId}/rounds/${round.id}/assignments/auto`, { judges_per_team: round.required_judges })).data, ...onBatch });
@@ -305,7 +307,6 @@ function AssignmentsPanel({ eventId, round }: { eventId: string; round: Round })
   const active = new Map(assignments.data.filter((a) => a.status !== "cancelled").map((a) => [`${a.judge.id}:${a.team.id}`, a]));
   const conflict = new Map(conflicts.data?.map((c) => [`${c.judge.id}:${c.team_id}`, c]));
   const teamName = new Map(teams.data.map((t) => [t.team_id, t.name]));
-  const deadlinePassed = serverNow() >= Date.parse(round.submission_deadline);
 
   return (
     <div className="space-y-4">
@@ -472,7 +473,8 @@ function ProgressPanel({ eventId, round }: { eventId: string; round: Round }) {
   const tracks = useTracks(eventId);
   const rubric = useRubric(eventId, round.id);
   const [trackId, setTrackId] = useState("");
-  const progress = useQuery({ queryKey: ["progress", round.id], queryFn: async () => (await api.get<Page<Progress>>(`/events/${eventId}/rounds/${round.id}/judging-progress`, ALL)).data.items });
+  const progress = useQuery({ queryKey: ["progress", round.id], queryFn: async () => (await api.get<JudgingProgress>(`/events/${eventId}/rounds/${round.id}/judging-progress`, ALL)).data });
+  const event = useEvent(eventId);
   const board = useQuery({
     queryKey: ["leaderboard", round.id, trackId],
     queryFn: async () => (await api.get<LeaderboardData>(`/events/${eventId}/rounds/${round.id}/leaderboard`, { params: { limit: 100, track_id: trackId || undefined } })).data,
@@ -497,25 +499,41 @@ function ProgressPanel({ eventId, round }: { eventId: string; round: Round }) {
     }
   };
   const trackName = new Map(tracks.data?.map((t) => [t.id, t.name]));
+  // Chưa tải xong trạng thái vòng/cuộc thi thì không hiện thao tác, tránh đoán sai
+  const state = progress.data && event.data ? progress.data : null;
+  const readOnly = event.data?.status === "closed" || !!event.data?.archived_at;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-black">Tiến độ chấm · {round.name}</h2>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className={buttonClass("primary")} disabled={change.isPending} onClick={() => run("lock")}>
-            Khóa điểm
-          </button>
-          <button type="button" className={buttonClass("secondary")} disabled={change.isPending} onClick={() => run("unlock")}>
-            Mở khóa…
-          </button>
-          <button type="button" className={buttonClass("accent")} disabled={change.isPending} onClick={() => run("publish")}>
-            Công bố
-          </button>
-          <button type="button" className={buttonClass("secondary")} disabled={change.isPending} onClick={() => run("unpublish")}>
-            Thu hồi công bố…
-          </button>
-        </div>
+        {state && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`chip ${state.published_at ? "bg-mint" : state.locked_at ? "bg-sun" : "bg-paper"}`}>
+              {state.published_at ? "Đã công bố" : state.locked_at ? "Đã khóa điểm" : "Đang chấm"}
+            </span>
+            {!readOnly && !state.locked_at && (
+              <button type="button" className={buttonClass("primary")} disabled={change.isPending} onClick={() => run("lock")}>
+                Khóa điểm
+              </button>
+            )}
+            {!readOnly && state.locked_at && !state.published_at && (
+              <>
+                <button type="button" className={buttonClass("secondary")} disabled={change.isPending} onClick={() => run("unlock")}>
+                  Mở khóa…
+                </button>
+                <button type="button" className={buttonClass("accent")} disabled={change.isPending} onClick={() => run("publish")}>
+                  Công bố
+                </button>
+              </>
+            )}
+            {!readOnly && state.published_at && (
+              <button type="button" className={buttonClass("secondary")} disabled={change.isPending} onClick={() => run("unpublish")}>
+                Thu hồi công bố…
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <p className="text-sm text-muted">Sửa kết quả đã công bố: Thu hồi công bố → Mở khóa → Mở lại bài chấm (tab Phân công) → giám khảo xác nhận lại → Khóa → Công bố bản mới.</p>
       {change.isError && <FormError>{errorMessage(change.error)}</FormError>}
@@ -535,7 +553,7 @@ function ProgressPanel({ eventId, round }: { eventId: string; round: Round }) {
             </tr>
           </thead>
           <tbody>
-            {progress.data?.map((p) => (
+            {progress.data?.items.map((p) => (
               <tr key={p.team.id} className="border-t border-line">
                 <td className="px-3 py-3 font-extrabold">{p.team.name}</td>
                 <td className="px-3 py-3">
@@ -550,7 +568,7 @@ function ProgressPanel({ eventId, round }: { eventId: string; round: Round }) {
             ))}
           </tbody>
         </table>
-        {progress.data?.length === 0 && <p className="p-3 font-serif italic text-muted">Vòng chưa có đội nào.</p>}
+        {progress.data?.items.length === 0 && <p className="p-3 font-serif italic text-muted">Vòng chưa có đội nào.</p>}
       </div>
 
       <section className="space-y-3">

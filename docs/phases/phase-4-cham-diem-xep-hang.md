@@ -189,6 +189,8 @@ Trạng thái FE: [ ]
 1. Sinh lại API type và giữ metadata progress; hiện tại `ProgressPanel` vẫn lấy `.data.items` nên luôn hiện bốn nút, kể cả khi event closed. Dùng bảng trạng thái ở trên và event status/archived để ẩn thao tác không phù hợp.
 2. Tab Phân công mở trước deadline không tự cập nhật nút khi đồng hồ qua hạn; đã quan sát nút vẫn disabled sau deadline, đổi tab rồi quay lại mới bật. Cần timer/re-render dựa giờ server khi qua mốc thời gian.
 3. Tab Kết quả của thí sinh hiện chỉ mở khi event judging/closed. Kết quả vòng đã công bố khi event còn ongoing (nhiều vòng) cần được tra cứu độc lập theo publication của vòng.
+FE đã sửa mục 1–3 ngày 2026-10-31 (sinh lại type; nút theo `locked_at`/`published_at`, ẩn khi event closed/archived, chưa tải xong thì không hiện; nút phân công đếm theo giờ server; tab Kết quả mở từ khi event ongoing). Typecheck/lint/build xanh, chưa nghiệm thu lại trên trình duyệt.
+
 4. Chưa nghiệm thu UI mentor/admin, cuộc thi hai vòng có đội bị loại, stale draft/conflict/reopen trên trình duyệt, và SMTP/inbox. Các test API tương ứng trước đây không thay cho bằng chứng UI.
 
 Trạng thái FE: [ ]

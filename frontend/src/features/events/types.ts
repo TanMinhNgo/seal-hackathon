@@ -23,6 +23,7 @@ export type AssignmentDetail = S["AssignmentDetail"];
 export type Conflict = S["ConflictOutput"];
 export type RoundTeam = S["RoundTeam"];
 export type Progress = S["Progress"];
+export type JudgingProgress = S["JudgingProgress"];
 export type LeaderboardData = S["Leaderboard"];
 export type LeaderboardRow = S["LeaderboardRow"];
 export type TeamResult = S["TeamResult"];

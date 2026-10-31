@@ -1814,6 +1814,17 @@ export interface components {
             /** Invite Code */
             invite_code: string;
         };
+        /** JudgingProgress */
+        JudgingProgress: {
+            /** Items */
+            items: components["schemas"]["Progress"][];
+            /** Total */
+            total: number;
+            /** Locked At */
+            locked_at: string | null;
+            /** Published At */
+            published_at: string | null;
+        };
         /** Leaderboard */
         Leaderboard: {
             /** Items */
@@ -2023,13 +2034,6 @@ export interface components {
         Page_PrizeOutput_: {
             /** Items */
             items: components["schemas"]["PrizeOutput"][];
-            /** Total */
-            total: number;
-        };
-        /** Page[Progress] */
-        Page_Progress_: {
-            /** Items */
-            items: components["schemas"]["Progress"][];
             /** Total */
             total: number;
         };
@@ -9840,7 +9844,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_Progress_"];
+                    "application/json": components["schemas"]["JudgingProgress"];
                 };
             };
             /** @description Unauthorized */

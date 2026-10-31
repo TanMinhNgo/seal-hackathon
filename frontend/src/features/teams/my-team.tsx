@@ -106,7 +106,8 @@ export function MyTeam({ slug }: { slug: string }) {
     ["team", "Đội & repo", <TeamView key="t" event={ev} team={t} tracks={tracks.data ?? []} userId={user.id} frozen={frozen} onTeam={setTeam} onReload={reload} />],
     ["questions", "Hỏi mentor", <TeamQuestions key="q" teamId={t.id} mode="member" userId={user.id} isLeader={t.leader_id === user.id} />],
     ["notes", "Góp ý mentor", <MentorNotes key="n" teamId={t.id} />],
-    ...(ev.status === "judging" || ev.status === "closed" ? [["result", "Kết quả", <TeamResults key="r" eventId={ev.id} teamId={t.id} />] as [TeamTab, string, ReactNode]] : []),
+    // Mỗi vòng công bố riêng nên cuộc thi nhiều vòng còn ongoing vẫn có thể có kết quả
+    ...(started ? [["result", "Kết quả", <TeamResults key="r" eventId={ev.id} teamId={t.id} />] as [TeamTab, string, ReactNode]] : []),
   ];
   return (
     <Shell title={`${t.name}.`} event={ev}>
