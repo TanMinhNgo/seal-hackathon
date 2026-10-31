@@ -318,6 +318,8 @@ def test_later_round_requires_explicit_eligibility_and_freeze(submission_world, 
             await session.commit()
 
     asyncio.run(allow())
+    assert submit(w).json()["code"] == "ROUND_NOT_ELIGIBLE"
+    monkeypatch.setattr(JudgingService, "results_ready", AsyncMock(return_value=True))
     assert submit(w).status_code == 201
     monkeypatch.setattr(JudgingService, "submissions_frozen", AsyncMock(return_value=True))
     assert submit(w, "new").json()["code"] == "SUBMISSIONS_FROZEN"

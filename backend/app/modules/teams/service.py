@@ -49,11 +49,13 @@ class TeamService:
         events: EventService,
         auth: AuthService,
         settings: Settings,
+        judging: object = None,
     ) -> None:
         self.repository = repository
         self.events = events
         self.auth = auth
         self.settings = settings
+        self.judging = judging
 
     @staticmethod
     def frozen(event: EventOutput | object) -> None:
@@ -135,8 +137,8 @@ class TeamService:
         member = any(m.user_id == actor.id for m in team.members)
         roles = await self.auth.roles_in_event(team.event_id)
         organizer = any(r.user_id == actor.id and r.role == "organizer" for r in roles)
-        # shortcut: chưa có phân công; Phase 4 nối quyền đọc qua judging service.
-        if not (actor.is_admin or member or organizer):
+        assigned = self.judging and await self.judging.can_read_team(actor.id, team.id)
+        if not (actor.is_admin or member or organizer or assigned):
             raise ApiError(403, "FORBIDDEN", "Team is outside the user's scope")
         return (await self.render([team], actor))[0]
 
@@ -556,8 +558,9 @@ class TeamService:
                     raise ApiError(409, "TEAM_NOT_ELIGIBLE", "Approved team violates eligibility")
         if to_status == "judging" and any(now < utc(r.submission_deadline) for r in rounds):
             raise ApiError(409, "INVALID_STATUS_TRANSITION", "Rounds still accept submissions")
-        if to_status == "closed":
-            # shortcut: Phase 4 phải kiểm tra snapshot đã công bố trước khi cho đóng event.
+        if to_status == "closed" and (
+            not self.judging or not await self.judging.results_ready([r.id for r in rounds])
+        ):
             raise ApiError(
                 409, "RESULTS_NOT_READY", "Closing requires published round results from Phase 4"
             )
@@ -594,3 +597,9 @@ class TeamService:
         if data.registration_closes_at is not None:
             await self.repository.invite_deadline(event_id, data.registration_closes_at)
         return await self.events.update(actor, event_id, data)
+
+    async def approved_for_judging(self, event_id: UUID) -> list:
+        return await self.repository.approved(event_id)
+
+    async def judging_teams(self, ids: list[UUID]) -> dict:
+        return {t.id: t for t in await self.repository.get_many(ids)}

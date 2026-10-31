@@ -50,7 +50,9 @@ class TeamRepository:
     async def get_many(self, ids: list[UUID]) -> list[Team]:
         return list(
             await self.session.scalars(
-                select(Team).where(Team.id.in_(ids), Team.disbanded_at.is_(None))
+                select(Team)
+                .options(selectinload(Team.members))
+                .where(Team.id.in_(ids), Team.disbanded_at.is_(None))
             )
         )
 

@@ -6,6 +6,8 @@ Rà soát chức năng và ưu tiên bổ sung theo từng vai trò: [ROLE-REVIE
 
 Tiến độ backend 2026-10-30: Phase 1 có 15 operation, Phase 2 có 41 operation; Phase 3 có 5 operation và migration 0005_submissions ở PostgreSQL local. Cloudinary signed POST/authenticated raw đã cấu hình; smoke thật PDF/ZIP/PPTX/MP4 qua upload/chốt/tải, URL không ký bị chặn và replay không đổi file đã chốt; GitHub HEAD public cũng qua. Lượt rà soát Phase 3: lint xanh, 43 test qua/2 test khóa dòng bỏ qua ở SQLite, Alembic không drift; bằng chứng toàn bộ/PostgreSQL từ lượt triển khai trước và việc còn lại (FE/demo toàn luồng, SMTP/inbox, quota/file lớn, hook Phase 4) xem [bàn giao Phase 3](phases/phase-3-nop-bai.md#bàn-giao-backend-phase-3). Phase 3 chưa nghiệm thu toàn luồng; frontend theo dõi riêng.
 
+Tiến độ backend Phase 4 (2026-10-31): 34 operation mới, migration `0006_judging` đã áp dụng PostgreSQL local; rubric, phân công/chấm, xếp hạng/công bố revision, mentor/Q&A và các hook Phase 2–3 đã nối. Phase 4 có 12 test qua PostgreSQL, Redis cache smoke qua, Alembic không drift. Chi tiết quyền, lỗi, worker và việc FE cần nối xem [bàn giao Phase 4](phases/phase-4-cham-diem-xep-hang.md#bàn-giao-backend-phase-4). Chưa nghiệm thu FE/demo toàn luồng và SMTP/inbox.
+
 | Phase | File | Nội dung |
 | --- | --- | --- |
 | 0 | [phase-0-nen-mong.md](phases/phase-0-nen-mong.md) | Khung dự án, Docker Compose, CI |
