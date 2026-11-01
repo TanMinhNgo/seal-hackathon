@@ -22,6 +22,7 @@ export interface FieldDef {
   type?: "text" | "textarea" | "url" | "email" | "datetime" | "number" | "decimal";
   required?: boolean;
   min?: number;
+  max?: number;
   hint?: string;
 }
 
@@ -70,6 +71,7 @@ export function FieldsForm({ fields, initial, submitLabel, onSubmit, busy, error
                   type={f.type === "datetime" ? "datetime-local" : f.type === "decimal" ? "text" : (f.type ?? "text")}
                   inputMode={f.type === "decimal" ? "decimal" : undefined}
                   min={f.min}
+                  max={f.max}
                 />
               )}
               {f.hint && <p className="mt-1 text-xs text-muted">{f.hint}</p>}
@@ -98,6 +100,8 @@ export const EVENT_FIELDS: Record<string, FieldDef> = {
   ends_at: { key: "ends_at", label: "Kết thúc", type: "datetime", required: true },
   min_team_size: { key: "min_team_size", label: "Số người tối thiểu/đội", type: "number", min: 1 },
   max_team_size: { key: "max_team_size", label: "Số người tối đa/đội", type: "number", min: 1 },
+  sync_interval_minutes: { key: "sync_interval_minutes", label: "Chu kỳ đồng bộ commit (phút)", type: "number", min: 1, max: 1440, hint: "1–1440 phút. Đổi được cả khi đang thi." },
+  inactivity_alert_hours: { key: "inactivity_alert_hours", label: "Cảnh báo không commit sau (giờ)", type: "number", min: 1, max: 168, hint: "1–168 giờ. Đổi được cả khi đang thi." },
 };
 export const pick = (...keys: string[]) => keys.map((k) => EVENT_FIELDS[k]);
 

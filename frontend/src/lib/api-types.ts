@@ -1251,6 +1251,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/teams/{team_id}/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Commits */
+        get: operations["commits_api_v1_teams__team_id__commits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}/commits/{sha}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Commit */
+        get: operations["commit_api_v1_teams__team_id__commits__sha__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}/commits/{sha}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Diff */
+        get: operations["diff_api_v1_teams__team_id__commits__sha__diff_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}/commit-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stats */
+        get: operations["stats_api_v1_teams__team_id__commit_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{event_id}/commit-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview */
+        get: operations["overview_api_v1_events__event_id__commit_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync */
+        post: operations["sync_api_v1_teams__team_id__sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1427,6 +1529,119 @@ export interface components {
             /** Judges Per Team */
             judges_per_team: number;
         };
+        /** CommitOutput */
+        CommitOutput: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sha */
+            sha: string;
+            /** Author */
+            author: string;
+            /** Message */
+            message: string;
+            /** Branch */
+            branch: string;
+            /**
+             * Committed At
+             * Format: date-time
+             */
+            committed_at: string;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Additions */
+            additions: number;
+            /** Deletions */
+            deletions: number;
+            /** Removed */
+            removed: boolean;
+            /** Baseline */
+            baseline: boolean;
+            /** In Event Window */
+            in_event_window: boolean;
+            /** Url */
+            url: string;
+        };
+        /** CommitOverview */
+        CommitOverview: {
+            /** Total */
+            total: number;
+            /** Last Commit At */
+            last_commit_at: string | null;
+            /** Last Synced At */
+            last_synced_at?: string | null;
+            /**
+             * Sync Status
+             * @default pending
+             * @enum {string}
+             */
+            sync_status: "ok" | "error" | "pending";
+            /** Sync Error */
+            sync_error?: string | null;
+            /** Branch */
+            branch?: string | null;
+            /** Last Attempt At */
+            last_attempt_at?: string | null;
+            /**
+             * Running
+             * @default false
+             */
+            running: boolean;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            team: components["schemas"]["CommitTeam"];
+            /** Inactive */
+            inactive: boolean;
+        };
+        /** CommitStats */
+        CommitStats: {
+            /** Total */
+            total: number;
+            /** Last Commit At */
+            last_commit_at: string | null;
+            /** Last Synced At */
+            last_synced_at?: string | null;
+            /**
+             * Sync Status
+             * @default pending
+             * @enum {string}
+             */
+            sync_status: "ok" | "error" | "pending";
+            /** Sync Error */
+            sync_error?: string | null;
+            /** Branch */
+            branch?: string | null;
+            /** Last Attempt At */
+            last_attempt_at?: string | null;
+            /**
+             * Running
+             * @default false
+             */
+            running: boolean;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** CommitTeam */
+        CommitTeam: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
         /** ConflictInput */
         ConflictInput: {
             /** Reason */
@@ -1557,6 +1772,34 @@ export interface components {
             /** Storage Bytes */
             storage_bytes?: number | null;
         };
+        /** DiffFile */
+        DiffFile: {
+            /** Path */
+            path: string;
+            /** Previous Path */
+            previous_path: string | null;
+            /** Status */
+            status: string;
+            /** Additions */
+            additions: number;
+            /** Deletions */
+            deletions: number;
+            /** Patch */
+            patch: string | null;
+            /** Binary */
+            binary: boolean | null;
+            /** Truncated */
+            truncated: boolean;
+        };
+        /** DiffPage */
+        DiffPage: {
+            /** Items */
+            items: components["schemas"]["DiffFile"][];
+            /** Total */
+            total: number;
+            /** Truncated */
+            truncated: boolean;
+        };
         /** EligibilityInput */
         EligibilityInput: {
             /**
@@ -1631,6 +1874,16 @@ export interface components {
              */
             max_team_size: number;
             /**
+             * Sync Interval Minutes
+             * @default 30
+             */
+            sync_interval_minutes: number;
+            /**
+             * Inactivity Alert Hours
+             * @default 6
+             */
+            inactivity_alert_hours: number;
+            /**
              * Organizer Email
              * Format: email
              */
@@ -1682,6 +1935,16 @@ export interface components {
             min_team_size: number;
             /** Max Team Size */
             max_team_size: number;
+            /**
+             * Sync Interval Minutes
+             * @default 30
+             */
+            sync_interval_minutes: number;
+            /**
+             * Inactivity Alert Hours
+             * @default 6
+             */
+            inactivity_alert_hours: number;
             /** Archived At */
             archived_at: string | null;
             /**
@@ -1714,6 +1977,10 @@ export interface components {
             min_team_size?: number | null;
             /** Max Team Size */
             max_team_size?: number | null;
+            /** Sync Interval Minutes */
+            sync_interval_minutes?: number | null;
+            /** Inactivity Alert Hours */
+            inactivity_alert_hours?: number | null;
         };
         /** EventRoleOutput */
         EventRoleOutput: {
@@ -1774,6 +2041,16 @@ export interface components {
             min_team_size: number;
             /** Max Team Size */
             max_team_size: number;
+            /**
+             * Sync Interval Minutes
+             * @default 30
+             */
+            sync_interval_minutes: number;
+            /**
+             * Inactivity Alert Hours
+             * @default 6
+             */
+            inactivity_alert_hours: number;
             /** Archived At */
             archived_at: string | null;
             /**
@@ -1992,6 +2269,20 @@ export interface components {
         Page_AssignmentOutput_: {
             /** Items */
             items: components["schemas"]["AssignmentOutput"][];
+            /** Total */
+            total: number;
+        };
+        /** Page[CommitOutput] */
+        Page_CommitOutput_: {
+            /** Items */
+            items: components["schemas"]["CommitOutput"][];
+            /** Total */
+            total: number;
+        };
+        /** Page[CommitOverview] */
+        Page_CommitOverview_: {
+            /** Items */
+            items: components["schemas"]["CommitOverview"][];
             /** Total */
             total: number;
         };
@@ -2621,6 +2912,17 @@ export interface components {
             submitted_at: string;
             /** Is Final */
             is_final: boolean;
+        };
+        /** SyncQueued */
+        SyncQueued: {
+            /** Task Id */
+            task_id: string;
+            /**
+             * Status
+             * @default queued
+             * @constant
+             */
+            status: "queued";
         };
         /** SystemOverview */
         SystemOverview: {
@@ -11391,6 +11693,203 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorOutput"];
+                };
+            };
+        };
+    };
+    commits_api_v1_teams__team_id__commits_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CommitOutput_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_api_v1_teams__team_id__commits__sha__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                team_id: string;
+                sha: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommitOutput"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    diff_api_v1_teams__team_id__commits__sha__diff_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                team_id: string;
+                sha: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stats_api_v1_teams__team_id__commit_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommitStats"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overview_api_v1_events__event_id__commit_overview_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CommitOverview_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_api_v1_teams__team_id__sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncQueued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

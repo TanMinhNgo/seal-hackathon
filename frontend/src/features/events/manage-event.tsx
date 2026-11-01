@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { FormError } from "@/features/auth/auth-card";
+import { CommitOverviewPanel } from "@/features/commits/commits";
 import { JudgingPanel, MentorAssignmentsPanel } from "@/features/judging/organizer";
 import { RoundSubmissionsPanel } from "@/features/submissions/submissions";
 import { errorMessage } from "@/lib/api";
 import { CrudPanel, EventEditor, RegistrationsPanel, RolesPanel, StatusStepper, Tabs, TeamsPanel, useEvent } from "./manage";
 
-type Tab = "info" | "rounds" | "tracks" | "prizes" | "roles" | "teams" | "registrations" | "submissions" | "judging" | "mentors";
+type Tab = "info" | "rounds" | "tracks" | "prizes" | "roles" | "teams" | "registrations" | "submissions" | "judging" | "mentors" | "progress";
 
 /** Khu vận hành của ban tổ chức cho một cuộc thi. */
 export function ManageEvent({ eventId }: { eventId: string }) {
@@ -19,7 +20,7 @@ export function ManageEvent({ eventId }: { eventId: string }) {
   if (!event.data) return <p role="status" className="px-6 pt-12 text-center">Đang tải…</p>;
   const e = event.data;
   // Slug chỉ đổi được khi còn bản nháp
-  const infoKeys = ["name", ...(e.status === "draft" ? ["slug"] : []), "registration_opens_at", "registration_closes_at", "starts_at", "ends_at", "min_team_size", "max_team_size", "banner_url", "description", "rules"];
+  const infoKeys = ["name", ...(e.status === "draft" ? ["slug"] : []), "registration_opens_at", "registration_closes_at", "starts_at", "ends_at", "min_team_size", "max_team_size", "sync_interval_minutes", "inactivity_alert_hours", "banner_url", "description", "rules"];
 
   return (
     <main className="mx-auto max-w-[1360px] space-y-7 px-4 pb-24 pt-8 sm:px-6">
@@ -48,6 +49,7 @@ export function ManageEvent({ eventId }: { eventId: string }) {
           ["teams", "Duyệt đội"],
           ["registrations", "Người đăng ký"],
           ["submissions", "Bài nộp"],
+          ["progress", "Tiến độ"],
           ["mentors", "Phân công mentor"],
           ["judging", "Chấm điểm"],
         ]}
@@ -57,7 +59,7 @@ export function ManageEvent({ eventId }: { eventId: string }) {
         {tab === "info" && (
           <>
             <h2 className="mb-1 text-xl font-black">Thông tin &amp; lịch</h2>
-            <p className="mb-4 text-sm text-muted">Giờ nhập theo máy bạn, lưu ở server theo UTC. Sau giờ bắt đầu thi không sửa được cấu hình vận hành.</p>
+            <p className="mb-4 text-sm text-muted">Giờ nhập theo máy bạn, lưu ở server theo UTC. Sau giờ bắt đầu thi chỉ còn sửa được tên, mô tả, ảnh bìa, chu kỳ đồng bộ và ngưỡng cảnh báo.</p>
             <EventEditor event={e} keys={infoKeys} />
           </>
         )}
@@ -71,6 +73,7 @@ export function ManageEvent({ eventId }: { eventId: string }) {
             <RoundSubmissionsPanel eventId={e.id} />
           </>
         )}
+        {tab === "progress" && <CommitOverviewPanel eventId={e.id} />}
         {tab === "mentors" && <MentorAssignmentsPanel eventId={e.id} />}
         {tab === "judging" && <JudgingPanel eventId={e.id} />}
       </section>
