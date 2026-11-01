@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.db import engine, sync_engine
 from app.core.errors import register_error_handlers
 from app.modules.auth.router import admin_router, auth_router, users_router
+from app.modules.commits.router import router as commits_router
 from app.modules.events.router import router as events_router
 from app.modules.judging.router import router as judging_router
 from app.modules.submissions.router import router as submissions_router
@@ -36,6 +37,7 @@ api.include_router(events_router)
 api.include_router(teams_router)
 api.include_router(submissions_router)
 api.include_router(judging_router)
+api.include_router(commits_router)
 api.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

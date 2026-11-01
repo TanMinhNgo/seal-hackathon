@@ -13,6 +13,19 @@ from app.modules.teams.models import Team, TeamMember
 
 class TeamRepository:
     @staticmethod
+    def sync_teams(session: object, event_id: UUID) -> list[Team]:
+        return list(
+            session.scalars(
+                select(Team).where(
+                    Team.event_id == event_id,
+                    Team.status == "approved",
+                    Team.disbanded_at.is_(None),
+                    Team.repo_url.is_not(None),
+                )
+            )
+        )
+
+    @staticmethod
     def reminder_teams(session: object, event_id: UUID, eligible: set[UUID] | None) -> list[object]:
         query = (
             select(Team)

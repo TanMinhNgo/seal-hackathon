@@ -34,6 +34,14 @@ if TYPE_CHECKING:
 
 class EventService:
     @staticmethod
+    def sync_guard(session: object, event_id: UUID) -> bool:
+        return EventRepository.sync_guard(session, event_id)
+
+    @staticmethod
+    def sync_events(session: object) -> list:
+        return EventRepository.sync_events(session)
+
+    @staticmethod
     def reminder_rounds(session: object, now: datetime) -> list[tuple[object, set[UUID] | None]]:
         return EventRepository.reminder_rounds(session, now)
 
@@ -164,7 +172,14 @@ class EventService:
             raise ApiError(403, "FORBIDDEN", "Administrators may only edit event metadata")
         if "slug" in values and values["slug"] != event.slug and event.status != "draft":
             raise ApiError(409, "RESOURCE_IN_USE", "Event slug is frozen")
-        protected = set(EventInput.model_fields) - {"name", "description", "banner_url", "slug"}
+        protected = set(EventInput.model_fields) - {
+            "name",
+            "description",
+            "banner_url",
+            "slug",
+            "sync_interval_minutes",
+            "inactivity_alert_hours",
+        }
         if values.keys() & protected and (
             event.status in {"ongoing", "judging"} or datetime.now(UTC) >= utc(event.starts_at)
         ):

@@ -16,6 +16,24 @@ CHILDREN = {"rounds": Round, "tracks": Track, "prizes": Prize}
 
 class EventRepository:
     @staticmethod
+    def sync_guard(session: object, event_id: UUID) -> bool:
+        event = session.scalar(
+            select(Event)
+            .where(Event.id == event_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return bool(event and event.status == "ongoing" and event.archived_at is None)
+
+    @staticmethod
+    def sync_events(session: object) -> list[Event]:
+        return list(
+            session.scalars(
+                select(Event).where(Event.status == "ongoing", Event.archived_at.is_(None))
+            )
+        )
+
+    @staticmethod
     def reminder_rounds(session: object, now: datetime) -> list[tuple[object, set[UUID] | None]]:
         events = list(
             session.scalars(

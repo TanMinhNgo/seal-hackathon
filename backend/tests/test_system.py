@@ -45,6 +45,11 @@ def test_admin_system_counts_and_openapi(auth_client, email_queue, auth_engine, 
     assert response.headers["cache-control"] == "no-store"
     data = response.json()
     assert data["server_time"].endswith("Z")
+    database_bytes = data["data"]["database_bytes"]
+    if auth_engine.dialect.name == "postgresql":
+        assert isinstance(database_bytes, int) and database_bytes > 0
+    else:
+        assert database_bytes is None
     assert data["data"] == {
         "users": 2,
         "active_users": 1,
@@ -55,7 +60,7 @@ def test_admin_system_counts_and_openapi(auth_client, email_queue, auth_engine, 
         "commits": 0,
         "ai_reviews": 0,
         "audit_logs": 1,
-        "database_bytes": None,
+        "database_bytes": database_bytes,
         "storage_bytes": None,
     }
     state = statuses(response)

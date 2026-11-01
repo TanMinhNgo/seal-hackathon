@@ -35,6 +35,13 @@ logger = logging.getLogger(__name__)
 
 
 class AuthService:
+    async def event_started_at(self, event_id: UUID) -> datetime | None:
+        return await self.repository.event_started_at(event_id)
+
+    @staticmethod
+    def sync_recipients(session: object, event_id: UUID) -> list[str]:
+        return AuthRepository.sync_recipients(session, event_id)
+
     @staticmethod
     def reminder_users(session: object, ids: list[UUID]) -> dict[UUID, object]:
         return AuthRepository.reminder_users(session, ids)
