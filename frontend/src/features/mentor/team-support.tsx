@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/field";
 import { LocalTime } from "@/components/ui/local-time";
 import { Pager } from "@/components/ui/pager";
 import { FormError } from "@/features/auth/auth-card";
+import { CommitSelect, useForgetTeamOnForbidden } from "@/features/commits/commits";
 import type { Answer, MentorNote, Page, Question } from "@/features/events/types";
 import { api, errorMessage } from "@/lib/api";
 
@@ -19,9 +20,9 @@ export const PROGRESS: Record<NonNullable<MentorNote["progress_status"]>, [strin
 };
 
 /** Góp ý & ghi nhận tiến độ của mentor; `canPost` chỉ cho mentor đang được phân công. */
-export function MentorNotes({ teamId, canPost, commitFilter }: { teamId: string; canPost?: boolean; commitFilter?: boolean }) {
+export function MentorNotes({ teamId, canPost, commitFilter, commitSha = "" }: { teamId: string; canPost?: boolean; commitFilter?: boolean; commitSha?: string }) {
   const queryClient = useQueryClient();
-  const [sha, setSha] = useState("");
+  const [sha, setSha] = useState(commitSha);
   const [offset, setOffset] = useState(0);
   const [kind, setKind] = useState<MentorNote["kind"]>("feedback");
   const notes = useQuery({
@@ -29,9 +30,9 @@ export function MentorNotes({ teamId, canPost, commitFilter }: { teamId: string;
     queryFn: async () => (await api.get<Page<MentorNote>>(`/teams/${teamId}/mentor-notes`, { params: { commit_sha: sha || undefined, limit: LIMIT, offset } })).data,
     placeholderData: keepPreviousData,
   });
+  useForgetTeamOnForbidden(teamId, notes.error);
   const post = useMutation({
-    // Phase 5 chưa có commit đã lưu nên luôn gửi commit_sha=null
-    mutationFn: (body: { content: string; kind: MentorNote["kind"]; progress_status: MentorNote["progress_status"] }) => api.post(`/teams/${teamId}/mentor-notes`, { ...body, commit_sha: null }),
+    mutationFn: (body: { content: string; kind: MentorNote["kind"]; progress_status: MentorNote["progress_status"]; commit_sha: string | null }) => api.post(`/teams/${teamId}/mentor-notes`, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["mentor-notes", teamId] }),
   });
 
@@ -40,7 +41,7 @@ export function MentorNotes({ teamId, canPost, commitFilter }: { teamId: string;
     const form = e.currentTarget;
     const fd = new FormData(form);
     const progress_status = kind === "progress" ? (String(fd.get("progress_status")) as MentorNote["progress_status"]) : null;
-    post.mutate({ content: String(fd.get("content")).trim(), kind, progress_status }, { onSuccess: () => form.reset() });
+    post.mutate({ content: String(fd.get("content")).trim(), kind, progress_status, commit_sha: String(fd.get("commit_sha") ?? "") || null }, { onSuccess: () => form.reset() });
   }
 
   return (
@@ -75,7 +76,7 @@ export function MentorNotes({ teamId, canPost, commitFilter }: { teamId: string;
             Nội dung (gửi rồi không sửa/xóa được)
             <textarea name="content" required rows={3} maxLength={5000} className={TEXTAREA} />
           </label>
-          <p className="text-xs text-muted">Gắn góp ý vào commit sẽ có khi hệ thống đồng bộ commit GitHub.</p>
+          <CommitSelect teamId={teamId} />
           <button type="submit" className="btn bg-orange font-extrabold" disabled={post.isPending}>
             Gửi
           </button>
@@ -135,8 +136,9 @@ export function TeamQuestions({ teamId, mode, userId, isLeader }: { teamId: stri
     queryFn: async () => (await api.get<Page<Question>>(`/teams/${teamId}/questions`, { params: { limit: LIMIT, offset } })).data,
     placeholderData: keepPreviousData,
   });
+  useForgetTeamOnForbidden(teamId, list.error);
   const ask = useMutation({
-    mutationFn: (body: { title: string; content: string }) => api.post(`/teams/${teamId}/questions`, { ...body, commit_sha: null }),
+    mutationFn: (body: { title: string; content: string; commit_sha: string | null }) => api.post(`/teams/${teamId}/questions`, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["questions", teamId] }),
   });
 
@@ -144,7 +146,7 @@ export function TeamQuestions({ teamId, mode, userId, isLeader }: { teamId: stri
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData(form);
-    ask.mutate({ title: String(fd.get("title")).trim(), content: String(fd.get("content")).trim() }, { onSuccess: () => form.reset() });
+    ask.mutate({ title: String(fd.get("title")).trim(), content: String(fd.get("content")).trim(), commit_sha: String(fd.get("commit_sha") ?? "") || null }, { onSuccess: () => form.reset() });
   }
 
   return (
@@ -156,6 +158,7 @@ export function TeamQuestions({ teamId, mode, userId, isLeader }: { teamId: stri
             Nội dung
             <textarea name="content" required rows={3} maxLength={5000} className={TEXTAREA} />
           </label>
+          <CommitSelect teamId={teamId} />
           <p className="text-xs text-muted">Chỉ đội và mentor được phân công đọc được. Nếu đội chưa có mentor, câu hỏi vẫn được lưu và mentor thấy ngay khi được phân công.</p>
           <button type="submit" className={buttonClass("primary")} disabled={ask.isPending}>
             Gửi câu hỏi
@@ -202,6 +205,7 @@ function QuestionItem({ q, mode, canResolve }: { q: Question; mode: "member" | "
         </span>
         <span className={`chip ${Q_STATUS[q.status][1]}`}>{Q_STATUS[q.status][0]}</span>
       </div>
+      {q.commit_sha && <p className="mt-2 inline-block rounded-lg border-[1.5px] border-dashed border-ink px-2 font-mono text-xs font-semibold">về {q.commit_sha.slice(0, 7)}</p>}
       <p className="mt-2 font-extrabold leading-normal">{q.title}</p>
       <p className="mt-1 whitespace-pre-wrap leading-normal">{q.content}</p>
       <div className="mt-2.5 flex flex-wrap gap-2">

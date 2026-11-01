@@ -8,6 +8,7 @@ from uuid import UUID
 from app.core.errors import ApiError
 from app.core.schemas import Page, utc
 from app.integrations import ranking_cache
+from app.modules.commits.service import CommitService
 from app.modules.events.schemas import UserBrief
 from app.modules.judging.models import (
     Assignment,
@@ -61,8 +62,10 @@ class JudgingService:
         auth: AuthService | None = None,
         settings: Settings | None = None,
         submissions: SubmissionService | None = None,
+        commits: CommitService | None = None,
     ) -> None:
         self.repository = repository
+        self.commits = commits
         self.teams = teams
         self.events = events
         self.auth = auth
@@ -845,13 +848,14 @@ class JudgingService:
         teams = await self.teams.judging_teams(ids[offset : offset + limit])
         return Page(items=await self.teams.render(list(teams.values()), actor), total=len(ids))
 
-    @staticmethod
-    def validate_commit(commit_sha: str | None) -> None:
-        if commit_sha is not None:
+    async def validate_commit(self, team_id: UUID, commit_sha: str | None) -> None:
+        if commit_sha is not None and (
+            not self.commits or not await self.commits.exists(team_id, commit_sha)
+        ):
             raise ApiError(
                 422,
                 "COMMIT_NOT_FOUND",
-                "Commit must be stored for this team; Phase 5 is not available",
+                "Commit must be stored for this team",
             )
 
     async def discussion_context(
@@ -888,7 +892,7 @@ class JudgingService:
         team = await self.teams.get(team_id)
         _, _, actor = await self.context(actor, team.event_id, mutate=True)
         await self.mentor_access(actor, team, write=True)
-        self.validate_commit(data.commit_sha)
+        await self.validate_commit(team_id, data.commit_sha)
         row = await self.repository.add(
             MentorNote, team_id=team_id, mentor_id=actor.id, **data.model_dump()
         )
@@ -924,7 +928,7 @@ class JudgingService:
         team, _, actor = await self.discussion_context(actor, team_id, mutate=True)
         self.active_member(actor, team)
         await self.teams.limit(actor, "mentor-discussion", 60, 30)
-        self.validate_commit(data.commit_sha)
+        await self.validate_commit(team_id, data.commit_sha)
         row = await self.repository.add(
             MentorQuestion, team_id=team_id, author_id=actor.id, **data.model_dump()
         )

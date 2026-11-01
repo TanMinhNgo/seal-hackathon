@@ -39,6 +39,8 @@ class EventInput(TimedInput):
     ends_at: AwareDatetime
     min_team_size: int = Field(default=1, ge=1, le=100)
     max_team_size: int = Field(default=5, ge=1, le=100)
+    sync_interval_minutes: int = Field(default=30, ge=1, le=1440)
+    inactivity_alert_hours: int = Field(default=6, ge=1, le=168)
 
 
 class EventCreate(EventInput):
@@ -62,6 +64,8 @@ class EventPatch(TimedInput):
     ends_at: AwareDatetime | None = None
     min_team_size: int | None = Field(default=None, ge=1, le=100)
     max_team_size: int | None = Field(default=None, ge=1, le=100)
+    sync_interval_minutes: int | None = Field(default=None, ge=1, le=1440)
+    inactivity_alert_hours: int | None = Field(default=None, ge=1, le=168)
 
     @model_validator(mode="after")
     def reject_null(self) -> "EventPatch":
@@ -87,6 +91,8 @@ class EventOutput(Output):
     ends_at: datetime
     min_team_size: int
     max_team_size: int
+    sync_interval_minutes: int = 30
+    inactivity_alert_hours: int = 6
     archived_at: datetime | None
     created_at: datetime
 

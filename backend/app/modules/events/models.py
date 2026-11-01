@@ -29,6 +29,10 @@ class Event(Base):
             "min_team_size >= 1 AND max_team_size >= min_team_size", name="ck_events_team_size"
         ),
         CheckConstraint(
+            "sync_interval_minutes BETWEEN 1 AND 1440 AND inactivity_alert_hours BETWEEN 1 AND 168",
+            name="ck_events_sync_settings",
+        ),
+        CheckConstraint(
             "registration_opens_at < registration_closes_at "
             "AND registration_closes_at <= starts_at AND starts_at < ends_at",
             name="ck_events_schedule",
@@ -47,6 +51,8 @@ class Event(Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     min_team_size: Mapped[int] = mapped_column(Integer, default=1)
     max_team_size: Mapped[int] = mapped_column(Integer, default=5)
+    sync_interval_minutes: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
+    inactivity_alert_hours: Mapped[int] = mapped_column(Integer, default=6, server_default="6")
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

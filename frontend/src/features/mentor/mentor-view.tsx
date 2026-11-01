@@ -6,12 +6,13 @@ import { FormError } from "@/features/auth/auth-card";
 import { useMyEvents } from "@/features/auth/use-event-roles";
 import { Tabs } from "@/features/events/manage";
 import type { Page, Team } from "@/features/events/types";
+import { TeamProgress } from "@/features/commits/commits";
 import { TeamSubmissions } from "@/features/submissions/submissions";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 import { MentorNotes, TeamQuestions } from "./team-support";
 
-type Tab = "questions" | "notes" | "submissions";
+type Tab = "questions" | "notes" | "progress" | "submissions";
 
 export function MentorView() {
   const user = useAuth((s) => s.user);
@@ -73,9 +74,6 @@ export function MentorView() {
                     </li>
                   ))}
               </ul>
-              <p className="mt-4 rounded-xl border-2 border-dashed border-ink px-3.5 py-2.5 text-sm text-muted">
-                Commit &amp; AI review: chưa sẵn sàng, sẽ hiện khi hệ thống bật đồng bộ GitHub và AI review.
-              </p>
             </div>
 
             <Tabs<Tab>
@@ -85,12 +83,14 @@ export function MentorView() {
               tabs={[
                 ["questions", "Câu hỏi từ đội"],
                 ["notes", "Góp ý & tiến độ"],
+                ["progress", "Tiến độ commit"],
                 ["submissions", "Bài nộp"],
               ]}
             />
             <div className="sketch p-[22px]">
               {tab === "questions" && <TeamQuestions key={t.id} teamId={t.id} mode="mentor" />}
               {tab === "notes" && <MentorNotes key={t.id} teamId={t.id} canPost />}
+              {tab === "progress" && <TeamProgress key={t.id} teamId={t.id} />}
               {tab === "submissions" && <TeamSubmissions key={t.id} eventId={t.event_id} teamId={t.id} />}
             </div>
           </section>

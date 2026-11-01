@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { buttonClass } from "@/components/ui/button";
 import { LocalTime } from "@/components/ui/local-time";
 import { FormError } from "@/features/auth/auth-card";
+import { TeamProgress } from "@/features/commits/commits";
 import { useMyEvents } from "@/features/auth/use-event-roles";
 import type { Assignment, AssignmentDetail, Conflict, Page } from "@/features/events/types";
 import { Receipt, useRounds } from "@/features/submissions/submissions";
@@ -170,9 +171,11 @@ export function ScoreScreen({ assignmentId }: { assignmentId: string }) {
             <p className="mb-3 text-sm text-muted">Bản cuối hợp lệ trước hạn, đã ghim khi phân công; đội nộp thêm cũng không đổi.</p>
             <Receipt s={d.submission} />
           </section>
-          <section className="rounded-[22px] border-2 border-dashed border-ink p-5 text-sm">
-            <h2 className="text-lg font-black">Commit &amp; AI review</h2>
-            <p className="mt-1.5 text-muted">Chưa sẵn sàng: lịch sử commit và nhận xét AI sẽ có khi hệ thống bật đồng bộ GitHub và AI review. Điểm AI chỉ để tham khảo, không cộng vào rubric.</p>
+          <section aria-labelledby="progress" className="sketch p-5">
+            <h2 id="progress" className="mb-3 text-xl font-black">
+              Tiến độ commit
+            </h2>
+            <TeamProgress teamId={d.assignment.team.id} />
           </section>
         </div>
         <ScoreForm key={detail.dataUpdatedAt} detail={d} onReload={() => detail.refetch()} />

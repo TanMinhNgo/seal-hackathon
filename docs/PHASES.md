@@ -8,6 +8,8 @@ Tiến độ backend 2026-10-30: Phase 1 có 15 operation, Phase 2 có 41 operat
 
 Tiến độ backend Phase 4 (2026-10-31): 34 operation mới, migration `0006_judging` đã áp dụng PostgreSQL local; rubric, phân công/chấm, xếp hạng/công bố revision, mentor/Q&A và các hook Phase 2–3 đã nối. Phase 4 có 12 test qua PostgreSQL, Redis cache smoke qua, Alembic không drift. Chi tiết quyền, lỗi, worker và việc FE cần nối xem [bàn giao Phase 4](phases/phase-4-cham-diem-xep-hang.md#bàn-giao-backend-phase-4). Chưa nghiệm thu FE/demo toàn luồng và SMTP/inbox.
 
+Tiến độ backend Phase 5 (2026-11-02): 6 operation mới, hai field cấu hình event, migration `0007_commits` đã áp dụng PostgreSQL local; đồng bộ lịch sử GitHub, diff có coverage, baseline/head, force push, lease/cooldown/retry và hook commit cho mentor/Q&A đã nối. 20 test Phase 5 qua cả SQLite và PostgreSQL; GitHub thật lấy đủ 3 commit/diff của repo smoke, Alembic không drift. Quyền, lỗi, giới hạn, bằng chứng toàn suite và việc FE cần nối xem [bàn giao Phase 5](phases/phase-5-dong-bo-commit.md#bàn-giao-backend-phase-5). Chưa nghiệm thu FE/browser, lịch đồng bộ toàn luồng với commit vừa push, repo thật chuyển private và SMTP/inbox.
+
 | Phase | File | Nội dung |
 | --- | --- | --- |
 | 0 | [phase-0-nen-mong.md](phases/phase-0-nen-mong.md) | Khung dự án, Docker Compose, CI |

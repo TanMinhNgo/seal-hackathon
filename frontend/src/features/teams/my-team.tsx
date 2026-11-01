@@ -12,6 +12,7 @@ import { FormError } from "@/features/auth/auth-card";
 import { useMyEvents } from "@/features/auth/use-event-roles";
 import { Tabs } from "@/features/events/manage";
 import type { Event, Page, Team, Track } from "@/features/events/types";
+import { TeamProgress } from "@/features/commits/commits";
 import { MentorNotes, TeamQuestions } from "@/features/mentor/team-support";
 import { TeamResults } from "@/features/results/team-result";
 import { SubmitTab } from "@/features/submissions/submissions";
@@ -103,6 +104,7 @@ export function MyTeam({ slug }: { slug: string }) {
   const started = ev.status === "ongoing" || ev.status === "judging" || ev.status === "closed";
   const panes: [TeamTab, string, ReactNode][] = [
     ...(started ? [["submit", "Nộp bài", <SubmitTab key="s" event={ev} team={t} leader={t.leader_id === user.id} />] as [TeamTab, string, ReactNode]] : []),
+    ...(started ? [["progress", "Tiến độ", <TeamProgress key="p" teamId={t.id} />] as [TeamTab, string, ReactNode]] : []),
     ["team", "Đội & repo", <TeamView key="t" event={ev} team={t} tracks={tracks.data ?? []} userId={user.id} frozen={frozen} onTeam={setTeam} onReload={reload} />],
     ["questions", "Hỏi mentor", <TeamQuestions key="q" teamId={t.id} mode="member" userId={user.id} isLeader={t.leader_id === user.id} />],
     ["notes", "Góp ý mentor", <MentorNotes key="n" teamId={t.id} />],
@@ -116,7 +118,7 @@ export function MyTeam({ slug }: { slug: string }) {
   );
 }
 
-type TeamTab = "submit" | "team" | "questions" | "notes" | "result";
+type TeamTab = "submit" | "progress" | "team" | "questions" | "notes" | "result";
 
 function TeamTabs({ panes }: { panes: [TeamTab, string, ReactNode][] }) {
   const [tab, setTab] = useState<TeamTab>(panes[0][0]);

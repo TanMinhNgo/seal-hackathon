@@ -18,6 +18,32 @@ from app.modules.auth.schemas import AuditLogOutput, DataCounts
 
 
 class AuthRepository:
+    async def event_started_at(self, event_id: UUID) -> datetime | None:
+        return await self.session.scalar(
+            select(func.min(AuditLog.created_at)).where(
+                AuditLog.action == "event.transitioned",
+                AuditLog.target_type == "event",
+                AuditLog.target_id == str(event_id),
+                AuditLog.data["after"].as_string() == "ongoing",
+            )
+        )
+
+    @staticmethod
+    def sync_recipients(session: object, event_id: UUID) -> list[str]:
+        return list(
+            session.scalars(
+                select(User.email)
+                .join(EventRole, EventRole.user_id == User.id)
+                .where(
+                    EventRole.event_id == event_id,
+                    EventRole.role == "organizer",
+                    User.is_active.is_(True),
+                    User.email_verified.is_(True),
+                    User.is_admin.is_(False),
+                )
+            )
+        )
+
     @staticmethod
     def reminder_users(session: object, ids: list[UUID]) -> dict[UUID, object]:
         return {

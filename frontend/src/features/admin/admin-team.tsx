@@ -6,6 +6,7 @@ import { LocalTime } from "@/components/ui/local-time";
 import { FormError } from "@/features/auth/auth-card";
 import { useEvent, useTracks } from "@/features/events/manage";
 import type { Team } from "@/features/events/types";
+import { TeamProgress } from "@/features/commits/commits";
 import { MentorNotes, TeamQuestions } from "@/features/mentor/team-support";
 import { TeamResults } from "@/features/results/team-result";
 import { TeamSubmissions } from "@/features/submissions/submissions";
@@ -38,7 +39,7 @@ export function AdminTeam({ teamId }: { teamId: string }) {
         {track && <span className="chip bg-sky">{track.name}</span>}
         {t.disbanded_at && <span className="chip bg-warm">Đã giải tán</span>}
       </div>
-      <p className="text-sm text-muted">Hồ sơ chỉ đọc: admin không sửa, duyệt hay chấm đội. Kết quả chấm chỉ hiện khi vòng đã khóa; commit và AI review sẽ có ở Phase 5–6.</p>
+      <p className="text-sm text-muted">Hồ sơ chỉ đọc: admin không sửa, duyệt hay chấm đội. Kết quả chấm chỉ hiện khi vòng đã khóa; AI review sẽ có ở Phase 6.</p>
 
       <div className="flex flex-wrap gap-7">
         <section className="sketch min-w-0 flex-[999_1_460px] p-6">
@@ -89,6 +90,11 @@ export function AdminTeam({ teamId }: { teamId: string }) {
           </section>
         </div>
       </div>
+
+      <section className="sketch p-6">
+        <h2 className="mb-4 text-xl font-black">Commit</h2>
+        <TeamProgress teamId={t.id} commitHref={(sha) => `/admin/teams/${t.id}/commits/${sha}`} />
+      </section>
 
       <section className="sketch p-6">
         <h2 className="mb-4 text-xl font-black">Bài nộp</h2>

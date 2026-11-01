@@ -12,6 +12,7 @@ celery_app = Celery(
         "worker.tasks.send_email",
         "worker.tasks.submissions",
         "worker.tasks.judging",
+        "worker.tasks.commits",
     ],
 )
 celery_app.conf.update(
@@ -25,9 +26,9 @@ celery_app.conf.update(
     task_publish_retry=False,
     beat_scheduler="worker.scheduler:HeartbeatScheduler",
     beat_schedule={
+        "sync-commits": {"task": "seal.sync_commits", "schedule": 60.0},
         "result-emails": {"task": "seal.result_emails", "schedule": 60.0},
         "submission-reminders": {"task": "seal.submission_reminders", "schedule": 60.0},
         "cleanup-uploads": {"task": "seal.cleanup_uploads", "schedule": 3600.0},
     },
 )
-# Chỉ đăng ký lịch đồng bộ khi có task thật và chu kỳ theo từng cuộc thi.

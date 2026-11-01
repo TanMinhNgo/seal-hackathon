@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.modules.auth.dependencies import ServiceDependency, SettingsDependency
+from app.modules.commits.repository import CommitRepository
+from app.modules.commits.service import CommitService
 from app.modules.events.repository import EventRepository
 from app.modules.events.service import EventService
 from app.modules.judging.repository import JudgingRepository
@@ -73,7 +75,15 @@ def get_judging_service(
     settings: SettingsDependency,
     submissions: SubmissionServiceDependency,
 ) -> JudgingService:
-    return JudgingService(JudgingRepository(session), teams, events, auth, settings, submissions)
+    return JudgingService(
+        JudgingRepository(session),
+        teams,
+        events,
+        auth,
+        settings,
+        submissions,
+        CommitService(CommitRepository(session)),
+    )
 
 
 JudgingServiceDependency = Annotated[JudgingService, Depends(get_judging_service)]
