@@ -3,6 +3,8 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -22,6 +24,12 @@ from app.core.db import Base
 class Event(Base):
     __tablename__ = "events"
     __table_args__ = (
+        CheckConstraint(
+            "ai_pass_threshold >= 0 AND ai_pass_threshold < ai_good_threshold "
+            "AND ai_good_threshold <= 10 AND ai_token_budget_per_team_round > 0 "
+            "AND ai_visible_to_participants IN ('never','during','after_round')",
+            name="ck_events_ai_settings",
+        ),
         CheckConstraint(
             "status IN ('draft','open','ongoing','judging','closed')", name="ck_events_status"
         ),
@@ -53,6 +61,15 @@ class Event(Base):
     max_team_size: Mapped[int] = mapped_column(Integer, default=5)
     sync_interval_minutes: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
     inactivity_alert_hours: Mapped[int] = mapped_column(Integer, default=6, server_default="6")
+    ai_review_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    ai_visible_to_participants: Mapped[str] = mapped_column(
+        String(20), default="never", server_default="never"
+    )
+    ai_good_threshold: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=8, server_default="8")
+    ai_pass_threshold: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=5, server_default="5")
+    ai_token_budget_per_team_round: Mapped[int] = mapped_column(
+        Integer, default=100000, server_default="100000"
+    )
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -75,6 +92,7 @@ class Round(Base):
     submission_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     required_judges: Mapped[int] = mapped_column(Integer, default=2)
+    ai_config: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
 
 
 class Track(Base):

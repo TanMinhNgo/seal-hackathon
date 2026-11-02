@@ -45,7 +45,8 @@ try {
     New-Item -ItemType Directory -Path $logPath -Force | Out-Null
     $services = @(
         @{ Name = 'api'; File = $pythonPath; Dir = $backendPath; Args = '-m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000' },
-        @{ Name = 'worker'; File = $pythonPath; Dir = $backendPath; Args = '-m celery -A worker.celery_app:celery_app worker --pool=solo --loglevel=info' },
+        @{ Name = 'worker'; File = $pythonPath; Dir = $backendPath; Args = '-m celery -A worker.celery_app:celery_app worker -Q celery --pool=solo --loglevel=info' },
+        @{ Name = 'ai-worker'; File = $pythonPath; Dir = $backendPath; Args = '-m celery -A worker.celery_app:celery_app worker -Q ai-review --concurrency=1 --pool=solo --hostname=ai@%h --loglevel=info' },
         @{ Name = 'beat'; File = $pythonPath; Dir = $backendPath; Args = '-m celery -A worker.celery_app:celery_app beat --loglevel=info' },
         @{ Name = 'frontend'; File = $env:ComSpec; Dir = $frontendPath; Args = '/d /s /c "npm.cmd run dev -- --hostname 127.0.0.1 --port 3000"' }
     )

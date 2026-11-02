@@ -27,7 +27,26 @@ class TimedInput(Input):
         return utc(value) if isinstance(value, datetime) else value
 
 
-class EventInput(TimedInput):
+class AiSettings(Input):
+    ai_review_enabled: bool = False
+    ai_visible_to_participants: Literal["never", "during", "after_round"] = "never"
+    ai_good_threshold: float = Field(default=8, ge=0, le=10, multiple_of=0.01, allow_inf_nan=False)
+    ai_pass_threshold: float = Field(default=5, ge=0, le=10, multiple_of=0.01, allow_inf_nan=False)
+    ai_token_budget_per_team_round: int = Field(default=100000, gt=0, le=100000000, strict=True)
+
+    @model_validator(mode="after")
+    def thresholds(self) -> "AiSettings":
+        if self.ai_pass_threshold >= self.ai_good_threshold:
+            raise ValueError("AI pass threshold must be below good threshold")
+        return self
+
+
+class AiConfig(AiSettings):
+    model: str = "gpt-4o-mini-2024-07-18"
+    prompt_version: Literal["code-review-v1", "code-review-v2"] = "code-review-v2"
+
+
+class EventInput(TimedInput, AiSettings):
     name: Name
     slug: Slug
     description: str = Field(default="", max_length=20000)
@@ -53,6 +72,17 @@ class EventCreate(EventInput):
 
 
 class EventPatch(TimedInput):
+    ai_review_enabled: bool | None = None
+    ai_visible_to_participants: Literal["never", "during", "after_round"] | None = None
+    ai_good_threshold: float | None = Field(
+        default=None, ge=0, le=10, multiple_of=0.01, allow_inf_nan=False
+    )
+    ai_pass_threshold: float | None = Field(
+        default=None, ge=0, le=10, multiple_of=0.01, allow_inf_nan=False
+    )
+    ai_token_budget_per_team_round: int | None = Field(
+        default=None, gt=0, le=100000000, strict=True
+    )
     name: Name | None = None
     slug: Slug | None = None
     description: str | None = Field(default=None, max_length=20000)
@@ -77,7 +107,7 @@ class EventPatch(TimedInput):
         return self
 
 
-class EventOutput(Output):
+class EventOutput(Output, AiSettings):
     id: UUID
     name: str
     slug: str
@@ -149,6 +179,7 @@ class RoundPatch(TimedInput):
 class RoundOutput(Output, RoundInput):
     id: UUID
     event_id: UUID
+    ai_config: AiConfig
 
 
 class TrackInput(Input):

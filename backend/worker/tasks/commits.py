@@ -2,6 +2,7 @@ from uuid import UUID, uuid4
 
 from app.core.config import get_settings
 from app.core.db import sync_session_factory
+from app.core.schemas import utc
 from app.integrations.github_sync import GitHubSyncError, budget_pause
 from app.modules.commits.jobs import CommitJobs
 from app.modules.commits.repository import CommitJobRepository
@@ -40,13 +41,15 @@ def sync_commits() -> int:
 def sync_team(self: object, team_id: str, token: str) -> bool:
     with sync_session_factory() as session:
         repository = CommitJobRepository(session)
+        retry_token = str(uuid4()) if self.request.retries < self.max_retries else None
         try:
-            return CommitJobs(repository, get_settings()).run(UUID(team_id), token)
+            return CommitJobs(repository, get_settings()).run(
+                UUID(team_id), token, retry_token, 60 * 2**self.request.retries
+            )
         except GitHubSyncError as exc:
-            if self.request.retries >= self.max_retries:
+            if retry_token is None:
                 return False
-            delay = min(240, max(exc.retry_after, 60 * 2**self.request.retries))
-            retry_token = str(uuid4())
-            if repository.claim(UUID(team_id), retry_token, 0):
-                raise self.retry(args=[team_id, retry_token], countdown=delay, exc=exc)
-            return False
+            state = repository.state(UUID(team_id))
+            if state.lease_token != retry_token or state.next_retry_at is None:
+                return False
+            raise self.retry(args=[team_id, retry_token], eta=utc(state.next_retry_at), exc=exc)

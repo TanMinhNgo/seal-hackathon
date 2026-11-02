@@ -10,6 +10,8 @@ Tiến độ backend Phase 4 (2026-10-31): 34 operation mới, migration `0006_j
 
 Tiến độ backend Phase 5 (2026-11-02): 6 operation mới, hai field cấu hình event, migration `0007_commits` đã áp dụng PostgreSQL local; đồng bộ lịch sử GitHub, diff có coverage, baseline/head, force push, lease/cooldown/retry và hook commit cho mentor/Q&A đã nối. 20 test Phase 5 qua cả SQLite và PostgreSQL; GitHub thật lấy đủ 3 commit/diff của repo smoke, Alembic không drift. Quyền, lỗi, giới hạn, bằng chứng toàn suite và việc FE cần nối xem [bàn giao Phase 5](phases/phase-5-dong-bo-commit.md#bàn-giao-backend-phase-5). Chưa nghiệm thu FE/browser, lịch đồng bộ toàn luồng với commit vừa push, repo thật chuyển private và SMTP/inbox.
 
+Tiến độ backend Phase 6 (2026-11-02): 6 operation AI mới, cấu hình Event/snapshot Round và migration `0009_ai_reviews` đã lên PostgreSQL local; job durable nối với sync, queue `ai-review` riêng, structured output, coverage, budget/retry và flag/audit đã triển khai. Hồi quy SQLite 227 qua/5 bỏ qua, PostgreSQL 232 qua; nhóm AI được chạy lại riêng ở bản cuối sau rà soát. Bàn giao quyền, cấu hình, kiểm thử và giới hạn ở [Phase 6](phases/phase-6-ai-review.md#bàn-giao-backend-phase-6). Chưa có API key để nghiệm thu LLM thật, chưa nghiệm thu FE/browser và chu kỳ worker/provider toàn luồng.
+
 | Phase | File | Nội dung |
 | --- | --- | --- |
 | 0 | [phase-0-nen-mong.md](phases/phase-0-nen-mong.md) | Khung dự án, Docker Compose, CI |

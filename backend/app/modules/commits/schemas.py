@@ -45,6 +45,7 @@ class CommitStats(Output):
     branch: str | None = None
     last_attempt_at: datetime | None = None
     running: bool = False
+    next_retry_at: datetime | None = None
     truncated: bool = False
 
 

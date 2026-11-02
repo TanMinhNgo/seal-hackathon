@@ -34,6 +34,7 @@ class CommitSyncState(Base):
     truncated: Mapped[bool] = mapped_column(Boolean, default=False)
     lease_token: Mapped[str | None] = mapped_column(String(36))
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notified: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
