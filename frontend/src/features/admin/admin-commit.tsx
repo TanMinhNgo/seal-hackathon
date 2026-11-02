@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { LocalTime } from "@/components/ui/local-time";
 import { FormError } from "@/features/auth/auth-card";
+import { AiReviewList } from "@/features/ai-reviews/ai-reviews";
 import { CommitDiff, type Commit } from "@/features/commits/commits";
 import type { Team } from "@/features/events/types";
 import { MentorNotes } from "@/features/mentor/team-support";
@@ -62,7 +63,11 @@ export function AdminCommit({ teamId, sha }: { teamId: string; sha: string }) {
       <section className="sketch p-6">
         <h2 className="mb-4 text-xl font-black">Góp ý mentor gắn commit này</h2>
         <MentorNotes teamId={teamId} commitSha={c.sha} />
-        <p className="mt-4 text-sm text-muted">AI review sẽ có ở Phase 6.</p>
+      </section>
+
+      <section className="sketch p-6">
+        <h2 className="mb-4 text-xl font-black">AI review gộp commit này</h2>
+        <AiReviewList teamId={teamId} commitSha={c.sha} mode="readonly" canReadFlags />
       </section>
     </div>
   );

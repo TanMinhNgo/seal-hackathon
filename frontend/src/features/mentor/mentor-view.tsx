@@ -6,13 +6,14 @@ import { FormError } from "@/features/auth/auth-card";
 import { useMyEvents } from "@/features/auth/use-event-roles";
 import { Tabs } from "@/features/events/manage";
 import type { Page, Team } from "@/features/events/types";
+import { AiQuality } from "@/features/ai-reviews/ai-reviews";
 import { TeamProgress } from "@/features/commits/commits";
 import { TeamSubmissions } from "@/features/submissions/submissions";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 import { MentorNotes, TeamQuestions } from "./team-support";
 
-type Tab = "questions" | "notes" | "progress" | "submissions";
+type Tab = "questions" | "notes" | "progress" | "ai" | "submissions";
 
 export function MentorView() {
   const user = useAuth((s) => s.user);
@@ -84,6 +85,7 @@ export function MentorView() {
                 ["questions", "Câu hỏi từ đội"],
                 ["notes", "Góp ý & tiến độ"],
                 ["progress", "Tiến độ commit"],
+                ["ai", "Chất lượng code"],
                 ["submissions", "Bài nộp"],
               ]}
             />
@@ -91,6 +93,7 @@ export function MentorView() {
               {tab === "questions" && <TeamQuestions key={t.id} teamId={t.id} mode="mentor" />}
               {tab === "notes" && <MentorNotes key={t.id} teamId={t.id} canPost />}
               {tab === "progress" && <TeamProgress key={t.id} teamId={t.id} />}
+              {tab === "ai" && <AiQuality key={t.id} teamId={t.id} mode="readonly" />}
               {tab === "submissions" && <TeamSubmissions key={t.id} eventId={t.event_id} teamId={t.id} />}
             </div>
           </section>

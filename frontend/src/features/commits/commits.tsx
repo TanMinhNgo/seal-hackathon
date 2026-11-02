@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { LocalTime } from "@/components/ui/local-time";
 import { Pager } from "@/components/ui/pager";
 import { FormError } from "@/features/auth/auth-card";
@@ -47,9 +47,19 @@ export function useForgetTeamOnForbidden(teamId: string, error: unknown) {
 }
 
 export function useCommitStats(teamId: string) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ["commit-stats", teamId],
-    queryFn: async () => (await api.get<Stats>(`/teams/${teamId}/commit-stats`)).data,
+    queryFn: async () => {
+      const prev = queryClient.getQueryData<Stats>(["commit-stats", teamId]);
+      const data = (await api.get<Stats>(`/teams/${teamId}/commit-stats`)).data;
+      // Lượt đồng bộ vừa xong thì timeline/bảng tổng quan đã cũ
+      if (prev?.running && !data.running) {
+        void queryClient.invalidateQueries({ queryKey: ["commits", teamId] });
+        void queryClient.invalidateQueries({ queryKey: ["commit-overview"] });
+      }
+      return data;
+    },
     // Đang chạy thì đọc lại để thấy kết quả lượt đồng bộ
     refetchInterval: (q) => (q.state.data?.running ? 5000 : false),
   });
@@ -64,18 +74,19 @@ function useCommits(teamId: string, offset: number) {
 }
 
 /** Nút đồng bộ lại của BTC; sau mọi phản hồi đọc lại stats vì 503 vẫn có thể đã vào hàng đợi. */
-function SyncButton({ teamId, running }: { teamId: string; running: boolean }) {
+function SyncButton({ teamId, running, waiting, lastAttempt }: { teamId: string; running: boolean; waiting: boolean; lastAttempt: string | null | undefined }) {
   const queryClient = useQueryClient();
+  // Kết quả mutation = last_attempt_at lúc bấm: worker đã thử lượt mới thì thôi báo "đã xếp hàng"
   const sync = useMutation({
-    mutationFn: () => api.post(`/teams/${teamId}/sync`),
+    mutationFn: async (attemptAtClick: string | null | undefined) => (await api.post(`/teams/${teamId}/sync`), attemptAtClick),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["commit-stats", teamId] }),
   });
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
-      <button type="button" className="btn min-h-9 bg-orange text-sm font-extrabold" disabled={sync.isPending || running} onClick={() => sync.mutate()}>
-        {running ? "Đang đồng bộ…" : "Đồng bộ lại"}
+      <button type="button" className="btn min-h-9 bg-orange text-sm font-extrabold" disabled={sync.isPending || running} onClick={() => sync.mutate(lastAttempt)}>
+        {waiting ? "Đang chờ thử lại…" : running ? "Đang đồng bộ…" : "Đồng bộ lại"}
       </button>
-      {sync.isSuccess && !running && <span role="status" className="text-xs font-semibold">Đã xếp vào hàng đợi.</span>}
+      {sync.isSuccess && !running && sync.data === lastAttempt && <span role="status" className="text-xs font-semibold">Đã xếp vào hàng đợi.</span>}
       {sync.isError && <span role="alert" className="text-xs font-semibold text-minus">{errorMessage(sync.error)}</span>}
     </span>
   );
@@ -90,8 +101,8 @@ export function CommitStatsCard({ teamId, canSync }: { teamId: string; canSync?:
   const s = stats.data;
   const cell = "rounded-2xl border-2 border-ink bg-paper px-4 py-3";
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="@container space-y-3">
+      <div className="grid gap-3 @md:grid-cols-2 @3xl:grid-cols-4">
         <div className={cell}>
           <p className="text-xs font-bold text-muted">Commit trong giờ thi</p>
           <p className="text-2xl font-black">{s.total}</p>
@@ -108,7 +119,7 @@ export function CommitStatsCard({ teamId, canSync }: { teamId: string; canSync?:
           <p className="text-xs font-bold text-muted">Trạng thái</p>
           <p className="mt-1 flex flex-wrap gap-1.5">
             <span className={`chip text-xs ${SYNC_STATUS[s.sync_status][1]}`}>{SYNC_STATUS[s.sync_status][0]}</span>
-            {s.running && <span className="chip bg-sky text-xs">Đang chạy</span>}
+            <RunningChip s={s} />
           </p>
         </div>
       </div>
@@ -125,9 +136,20 @@ export function CommitStatsCard({ teamId, canSync }: { teamId: string; canSync?:
             Lần thử cuối <LocalTime iso={s.last_attempt_at} />
           </span>
         )}
-        {canSync && <SyncButton teamId={teamId} running={s.running} />}
+        {canSync && <SyncButton teamId={teamId} running={s.running} waiting={!!s.next_retry_at} lastAttempt={s.last_attempt_at} />}
       </p>
     </div>
+  );
+}
+
+/** running + next_retry_at = lease đang giữ để chờ retry đã hẹn, không phải đang chạy. */
+function RunningChip({ s }: { s: Pick<Stats, "running" | "next_retry_at"> }) {
+  if (!s.running) return null;
+  if (!s.next_retry_at) return <span className="chip bg-sky text-xs">Đang chạy</span>;
+  return (
+    <span className="chip bg-sky text-xs">
+      Chờ thử lại lúc <LocalTime iso={s.next_retry_at} />
+    </span>
   );
 }
 
@@ -299,7 +321,7 @@ export function CommitSelect({ teamId }: { teamId: string }) {
 }
 
 /** Bảng tổng quan BTC: sắp toàn bộ đội theo commit cuối, tô đội không hoạt động và đội lỗi đồng bộ. */
-export function CommitOverviewPanel({ eventId }: { eventId: string }) {
+export function CommitOverviewPanel({ eventId, teamExtra }: { eventId: string; teamExtra?: (teamId: string) => ReactNode }) {
   const [offset, setOffset] = useState(0);
   const [picked, setPicked] = useState("");
   const list = useQuery({
@@ -357,7 +379,7 @@ export function CommitOverviewPanel({ eventId }: { eventId: string }) {
                     <span className="flex flex-wrap gap-1">
                       {r.sync_status === "error" ? <span className="chip bg-rose text-xs" title={syncError(r.sync_error)}>Lỗi đồng bộ</span> : r.sync_status === "pending" && <span className="chip bg-sun text-xs">Chưa đồng bộ</span>}
                       {r.inactive && <span className="chip bg-sun text-xs">Không hoạt động</span>}
-                      {r.running && <span className="chip bg-sky text-xs">Đang chạy</span>}
+                      <RunningChip s={r} />
                       {r.sync_status === "ok" && !r.inactive && !r.running && <span className="chip bg-mint text-xs">Ổn</span>}
                     </span>
                     {r.sync_status === "error" && <span className="mt-1 block text-xs">{syncError(r.sync_error)}</span>}
@@ -373,6 +395,12 @@ export function CommitOverviewPanel({ eventId }: { eventId: string }) {
         <section aria-label={`Tiến độ ${team.team.name}`} className="rounded-[22px] border-2 border-ink p-5">
           <h3 className="mb-4 text-lg font-black">{team.team.name}</h3>
           <TeamProgress key={team.team.id} teamId={team.team.id} canSync />
+          {teamExtra && (
+            <div className="mt-6 border-t-2 border-dashed border-ink pt-5">
+              <h4 className="mb-3 text-lg font-black">Chất lượng code</h4>
+              {teamExtra(team.team.id)}
+            </div>
+          )}
         </section>
       )}
     </div>

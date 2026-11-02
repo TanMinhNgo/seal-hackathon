@@ -12,5 +12,5 @@ export function toLocalInput(iso: string | null | undefined) {
 /** Giá trị datetime-local (giờ máy) → ISO UTC gửi server; rỗng → null. */
 export const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
 
-export const formatDateTime = (iso: string) => new Date(iso).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+export const formatDateTime = (iso: string) => new Date(iso).toLocaleString("vi-VN", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 export const formatDate = (iso: string) => new Date(iso).toLocaleDateString("vi-VN");

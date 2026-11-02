@@ -140,6 +140,12 @@ const MESSAGES: Record<string, string> = {
   EVENT_NOT_OPEN: "Cuộc thi không còn mở cho thao tác này.",
   QUESTION_NOT_FOUND: "Không tìm thấy câu hỏi.",
   QUESTION_RESOLVED: "Câu hỏi đã được đánh dấu giải quyết.",
+  INVALID_AI_SETTINGS: "Cấu hình AI không hợp lệ: cần 0 ≤ ngưỡng Đạt < ngưỡng Tốt ≤ 10 (tối đa 2 chữ số thập phân), ngân sách 1–100.000.000 token.",
+  AI_RETRY_NOT_ALLOWED: "Job này không thử lại được (đang chạy, đã xong, bị bỏ qua hoặc hết lượt thử).",
+  EVENT_NOT_ACTIVE: "Chỉ thử lại được khi cuộc thi đang diễn ra hoặc đang chấm.",
+  AI_JOB_NOT_FOUND: "Không tìm thấy job AI của đội.",
+  AI_REVIEW_NOT_FOUND: "Không tìm thấy review AI.",
+  AI_FLAG_NOT_FOUND: "Không tìm thấy phản hồi.",
 };
 
 type Presign = components["schemas"]["PresignOutput"];

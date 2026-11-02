@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { buttonClass } from "@/components/ui/button";
 import { LocalTime } from "@/components/ui/local-time";
 import { FormError } from "@/features/auth/auth-card";
+import { AiQuality } from "@/features/ai-reviews/ai-reviews";
 import { TeamProgress } from "@/features/commits/commits";
 import { useMyEvents } from "@/features/auth/use-event-roles";
 import type { Assignment, AssignmentDetail, Conflict, Page } from "@/features/events/types";
@@ -176,6 +177,12 @@ export function ScoreScreen({ assignmentId }: { assignmentId: string }) {
               Tiến độ commit
             </h2>
             <TeamProgress teamId={d.assignment.team.id} />
+          </section>
+          <section aria-labelledby="ai" className="sketch p-5">
+            <h2 id="ai" className="mb-3 text-xl font-black">
+              Chất lượng code
+            </h2>
+            <AiQuality teamId={d.assignment.team.id} roundId={d.assignment.round_id} mode="judge" />
           </section>
         </div>
         <ScoreForm key={detail.dataUpdatedAt} detail={d} onReload={() => detail.refetch()} />

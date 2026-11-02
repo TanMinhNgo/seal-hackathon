@@ -1353,6 +1353,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/teams/{team_id}/ai-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reviews */
+        get: operations["reviews_api_v1_teams__team_id__ai_reviews_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}/ai-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Summary */
+        get: operations["summary_api_v1_teams__team_id__ai_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai-reviews/{review_id}/flag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Flag */
+        post: operations["flag_api_v1_ai_reviews__review_id__flag_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai-reviews/{review_id}/flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Flags */
+        get: operations["flags_api_v1_ai_reviews__review_id__flags_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai-review-flags/{flag_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve */
+        post: operations["resolve_api_v1_ai_review_flags__flag_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}/ai-reviews/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry */
+        post: operations["retry_api_v1_teams__team_id__ai_reviews_retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1397,6 +1499,71 @@ export interface components {
             is_active?: boolean | null;
             /** Is Admin */
             is_admin?: boolean | null;
+        };
+        /** AiConfig */
+        AiConfig: {
+            /**
+             * Ai Review Enabled
+             * @default false
+             */
+            ai_review_enabled: boolean;
+            /**
+             * Ai Visible To Participants
+             * @default never
+             * @enum {string}
+             */
+            ai_visible_to_participants: "never" | "during" | "after_round";
+            /**
+             * Ai Good Threshold
+             * @default 8
+             */
+            ai_good_threshold: number;
+            /**
+             * Ai Pass Threshold
+             * @default 5
+             */
+            ai_pass_threshold: number;
+            /**
+             * Ai Token Budget Per Team Round
+             * @default 100000
+             */
+            ai_token_budget_per_team_round: number;
+            /**
+             * Model
+             * @default gpt-4o-mini-2024-07-18
+             */
+            model: string;
+            /**
+             * Prompt Version
+             * @default code-review-v2
+             * @enum {string}
+             */
+            prompt_version: "code-review-v1" | "code-review-v2";
+        };
+        /** AiSummary */
+        AiSummary: {
+            /** Avg Score */
+            avg_score: number | null;
+            /** Verdict Counts */
+            verdict_counts: {
+                [key: string]: number;
+            };
+            /** Critical Count */
+            critical_count: number;
+            /** Timeline */
+            timeline: components["schemas"]["TimelinePoint"][];
+            /** Top Issues */
+            top_issues: components["schemas"]["IssueCount"][];
+            /** Score Spike */
+            score_spike: boolean;
+            jobs?: components["schemas"]["JobCounts"] | null;
+            last_job?: components["schemas"]["LastJob"] | null;
+            /** Tokens Used */
+            tokens_used?: number | null;
+            /** Token Budget */
+            token_budget?: number | null;
+            /** Budget Exhausted */
+            budget_exhausted?: boolean | null;
         };
         /** AnswerInput */
         AnswerInput: {
@@ -1592,6 +1759,8 @@ export interface components {
              * @default false
              */
             running: boolean;
+            /** Next Retry At */
+            next_retry_at?: string | null;
             /**
              * Truncated
              * @default false
@@ -1626,6 +1795,8 @@ export interface components {
              * @default false
              */
             running: boolean;
+            /** Next Retry At */
+            next_retry_at?: string | null;
             /**
              * Truncated
              * @default false
@@ -1672,6 +1843,15 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** Coverage */
+        Coverage: {
+            /** Reviewed Files */
+            reviewed_files: number;
+            /** Omitted Files */
+            omitted_files: number;
+            /** Truncated */
+            truncated: boolean;
         };
         /** Criterion */
         Criterion: {
@@ -1827,6 +2007,32 @@ export interface components {
         };
         /** EventCreate */
         EventCreate: {
+            /**
+             * Ai Review Enabled
+             * @default false
+             */
+            ai_review_enabled: boolean;
+            /**
+             * Ai Visible To Participants
+             * @default never
+             * @enum {string}
+             */
+            ai_visible_to_participants: "never" | "during" | "after_round";
+            /**
+             * Ai Good Threshold
+             * @default 8
+             */
+            ai_good_threshold: number;
+            /**
+             * Ai Pass Threshold
+             * @default 5
+             */
+            ai_pass_threshold: number;
+            /**
+             * Ai Token Budget Per Team Round
+             * @default 100000
+             */
+            ai_token_budget_per_team_round: number;
             /** Name */
             name: string;
             /** Slug */
@@ -1892,6 +2098,32 @@ export interface components {
         /** EventOutput */
         EventOutput: {
             /**
+             * Ai Review Enabled
+             * @default false
+             */
+            ai_review_enabled: boolean;
+            /**
+             * Ai Visible To Participants
+             * @default never
+             * @enum {string}
+             */
+            ai_visible_to_participants: "never" | "during" | "after_round";
+            /**
+             * Ai Good Threshold
+             * @default 8
+             */
+            ai_good_threshold: number;
+            /**
+             * Ai Pass Threshold
+             * @default 5
+             */
+            ai_pass_threshold: number;
+            /**
+             * Ai Token Budget Per Team Round
+             * @default 100000
+             */
+            ai_token_budget_per_team_round: number;
+            /**
              * Id
              * Format: uuid
              */
@@ -1955,6 +2187,16 @@ export interface components {
         };
         /** EventPatch */
         EventPatch: {
+            /** Ai Review Enabled */
+            ai_review_enabled?: boolean | null;
+            /** Ai Visible To Participants */
+            ai_visible_to_participants?: ("never" | "during" | "after_round") | null;
+            /** Ai Good Threshold */
+            ai_good_threshold?: number | null;
+            /** Ai Pass Threshold */
+            ai_pass_threshold?: number | null;
+            /** Ai Token Budget Per Team Round */
+            ai_token_budget_per_team_round?: number | null;
             /** Name */
             name?: string | null;
             /** Slug */
@@ -1997,6 +2239,32 @@ export interface components {
         };
         /** EventSummary */
         EventSummary: {
+            /**
+             * Ai Review Enabled
+             * @default false
+             */
+            ai_review_enabled: boolean;
+            /**
+             * Ai Visible To Participants
+             * @default never
+             * @enum {string}
+             */
+            ai_visible_to_participants: "never" | "during" | "after_round";
+            /**
+             * Ai Good Threshold
+             * @default 8
+             */
+            ai_good_threshold: number;
+            /**
+             * Ai Pass Threshold
+             * @default 5
+             */
+            ai_pass_threshold: number;
+            /**
+             * Ai Token Budget Per Team Round
+             * @default 100000
+             */
+            ai_token_budget_per_team_round: number;
             /**
              * Id
              * Format: uuid
@@ -2076,6 +2344,41 @@ export interface components {
             /** Download Url */
             download_url?: string | null;
         };
+        /** FlagInput */
+        FlagInput: {
+            /** Reason */
+            reason: string;
+        };
+        /** FlagOutput */
+        FlagOutput: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Review Id
+             * Format: uuid
+             */
+            review_id: string;
+            judge: components["schemas"]["UserBrief"];
+            /** Reason */
+            reason: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "acknowledged" | "dismissed";
+            /** Resolution Note */
+            resolution_note: string | null;
+            /** Resolved At */
+            resolved_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2091,6 +2394,59 @@ export interface components {
             /** Invite Code */
             invite_code: string;
         };
+        /** Issue */
+        Issue: {
+            /** File */
+            file: string;
+            /** Line */
+            line: number | null;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "low" | "medium" | "high";
+            /** Category */
+            category: string;
+            /** Message */
+            message: string;
+            /** Suggestion */
+            suggestion: string;
+        };
+        /** IssueCount */
+        IssueCount: {
+            /** Category */
+            category: string;
+            /** Count */
+            count: number;
+        };
+        /** JobCounts */
+        JobCounts: {
+            /**
+             * Queued
+             * @default 0
+             */
+            queued: number;
+            /**
+             * Running
+             * @default 0
+             */
+            running: number;
+            /**
+             * Completed
+             * @default 0
+             */
+            completed: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+        };
         /** JudgingProgress */
         JudgingProgress: {
             /** Items */
@@ -2101,6 +2457,30 @@ export interface components {
             locked_at: string | null;
             /** Published At */
             published_at: string | null;
+        };
+        /** LastJob */
+        LastJob: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Round Id
+             * Format: uuid
+             */
+            round_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "skipped" | "failed";
+            /** Error Code */
+            error_code: string | null;
+            /** Attempts */
+            attempts: number;
+            /** Can Retry */
+            can_retry: boolean;
         };
         /** Leaderboard */
         Leaderboard: {
@@ -2300,6 +2680,13 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Page[FlagOutput] */
+        Page_FlagOutput_: {
+            /** Items */
+            items: components["schemas"]["FlagOutput"][];
+            /** Total */
+            total: number;
+        };
         /** Page[MentorAssignmentOutput] */
         Page_MentorAssignmentOutput_: {
             /** Items */
@@ -2339,6 +2726,13 @@ export interface components {
         Page_Registration_: {
             /** Items */
             items: components["schemas"]["Registration"][];
+            /** Total */
+            total: number;
+        };
+        /** Page[ReviewOutput] */
+        Page_ReviewOutput_: {
+            /** Items */
+            items: components["schemas"]["ReviewOutput"][];
             /** Total */
             total: number;
         };
@@ -2622,12 +3016,44 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** ResolveInput */
+        ResolveInput: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "acknowledged" | "dismissed";
+            /** Note */
+            note: string;
+        };
         /** ResultCriterion */
         ResultCriterion: {
             /** Name */
             name: string;
             /** Avg */
             avg: string;
+        };
+        /** RetryInput */
+        RetryInput: {
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+        };
+        /** RetryOutput */
+        RetryOutput: {
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /**
+             * Status
+             * @default queued
+             * @constant
+             */
+            status: "queued";
         };
         /** ReviewInput */
         ReviewInput: {
@@ -2638,6 +3064,54 @@ export interface components {
             status: "approved" | "rejected";
             /** Note */
             note?: string | null;
+        };
+        /** ReviewOutput */
+        ReviewOutput: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Round Id
+             * Format: uuid
+             */
+            round_id: string;
+            /** Commit Shas */
+            commit_shas: string[];
+            /** Model */
+            model: string;
+            /** Prompt Version */
+            prompt_version: string;
+            scores: components["schemas"]["Scores"];
+            /** Overall */
+            overall: number;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "good" | "pass" | "needs_improvement";
+            /** Critical */
+            critical: boolean;
+            /** Summary */
+            summary: string;
+            /** Issues */
+            issues: components["schemas"]["Issue"][];
+            coverage: components["schemas"]["Coverage"];
+            /** Tokens Used */
+            tokens_used: number;
+            /** Flagged */
+            flagged: boolean;
+            /**
+             * Flag Status
+             * @enum {string}
+             */
+            flag_status: "none" | "open" | "acknowledged" | "dismissed";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** RevisionInput */
         RevisionInput: {
@@ -2734,6 +3208,7 @@ export interface components {
              * Format: uuid
              */
             event_id: string;
+            ai_config: components["schemas"]["AiConfig"];
         };
         /** RoundPatch */
         RoundPatch: {
@@ -2811,6 +3286,23 @@ export interface components {
             score: string;
             /** Comment */
             comment: string | null;
+        };
+        /** Scores */
+        Scores: {
+            /** Correctness */
+            correctness: number;
+            /** Security */
+            security: number;
+            /** Clean Code */
+            clean_code: number;
+            /** Structure */
+            structure: number;
+            /** Error Handling */
+            error_handling: number;
+            /** Testing */
+            testing: number;
+            /** Commit Hygiene */
+            commit_hygiene: number;
         };
         /** ScoresInput */
         ScoresInput: {
@@ -3019,6 +3511,16 @@ export interface components {
             comments: string[];
             /** Publication Revision */
             publication_revision: number;
+        };
+        /** TimelinePoint */
+        TimelinePoint: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Score */
+            score: number;
         };
         /** TokenOutput */
         TokenOutput: {
@@ -11881,6 +12383,213 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SyncQueued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reviews_api_v1_teams__team_id__ai_reviews_get: {
+        parameters: {
+            query?: {
+                round_id?: string | null;
+                verdict?: ("good" | "pass" | "needs_improvement") | null;
+                commit_sha?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReviewOutput_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summary_api_v1_teams__team_id__ai_summary_get: {
+        parameters: {
+            query?: {
+                round_id?: string | null;
+            };
+            header?: never;
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    flag_api_v1_ai_reviews__review_id__flag_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlagInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    flags_api_v1_ai_reviews__review_id__flags_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_FlagOutput_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_api_v1_ai_review_flags__flag_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlagOutput"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_api_v1_teams__team_id__ai_reviews_retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetryInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryOutput"];
                 };
             };
             /** @description Validation Error */
