@@ -3,20 +3,47 @@
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 from statistics import quantiles
 from time import perf_counter
+from uuid import UUID
 
 import httpx
 
 
+def load_origin(base_url: str) -> str:
+    url = httpx.URL(base_url)
+    allowed = os.environ.get("SEAL_LOAD_ALLOWED_ORIGINS", "").split(",")
+    if (
+        url.scheme not in {"http", "https"}
+        or not url.host
+        or url.userinfo
+        or url.query
+        or url.fragment
+        or url.path != "/"
+        or str(url).rstrip("/") not in {origin.strip().rstrip("/") for origin in allowed}
+    ):
+        raise ValueError("Load target must match SEAL_LOAD_ALLOWED_ORIGINS without a path")
+    return str(url)
+
+
 async def run(base_url: str, fixtures: list[dict], seconds: float) -> dict:
+    base_url = load_origin(base_url)
+    fixtures = [
+        {**row, "team_id": str(UUID(row["team_id"])), "round_id": str(UUID(row["round_id"]))}
+        for row in fixtures
+    ]
     if len(fixtures) != 100 or len({r["team_id"] for r in fixtures}) != 100:
         raise ValueError("Exactly 100 distinct team/round fixtures are required")
     started = perf_counter()
     async with httpx.AsyncClient(
-        base_url=base_url, timeout=45, limits=httpx.Limits(max_connections=100)
+        base_url=base_url,
+        timeout=45,
+        limits=httpx.Limits(max_connections=100),
+        follow_redirects=False,
+        trust_env=False,
     ) as client:
 
         async def submit(index: int, row: dict) -> tuple:

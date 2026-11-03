@@ -3,6 +3,7 @@ set -eu
 umask 077
 case "${BACKUP_RETENTION_DAYS:-}:${BACKUP_INTERVAL_SECONDS:-}" in
   *[!0-9:]*|:*|*:) exit 2 ;;
+  *) : ;;
 esac
 test "$BACKUP_RETENTION_DAYS" -ge 1
 test "$BACKUP_INTERVAL_SECONDS" -ge 60

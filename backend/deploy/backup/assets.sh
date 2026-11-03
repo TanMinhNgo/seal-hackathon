@@ -3,6 +3,7 @@ set -eu
 umask 077
 case "${BACKUP_RETENTION_DAYS:-}" in
   ''|*[!0-9]*) exit 2 ;;
+  *) : ;;
 esac
 test "$BACKUP_RETENTION_DAYS" -ge 1
 test -n "$BACKUP_AGE_RECIPIENT"
@@ -11,6 +12,7 @@ while :; do
     stamp=$(tr -d ':\n-' < /db-backup-status/last-success.txt)
     case "$stamp" in
       ''|*[!0-9TZ]*) exit 2 ;;
+      *) : ;;
     esac
     previous=$(cat /backups/last-success.txt 2>/dev/null || true)
     if test "$stamp" != "$previous"; then

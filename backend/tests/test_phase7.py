@@ -165,7 +165,8 @@ def test_reports_dashboard_filters_and_safe_files(world):
     assert cells[1][1].data_type == "s"
     assert "invite_code" not in [c.value for c in cells[0]]
     pdf = w.client.get(base + "/reports/export?type=teams&format=pdf", headers=w.organizer.headers)
-    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+    assert pdf.status_code == 200
+    assert pdf.content.startswith(b"%PDF")
     assert (
         w.client.get(
             base + f"/reports/export?type=teams&format=xlsx&round_id={uuid4()}",
@@ -201,7 +202,8 @@ def test_export_requires_locked_scores_and_publication_invalidations(judging_wor
     assert call(w, "post", w.base + "/publish").status_code == 204
     assert call(w, "post", w.base + "/unpublish", body={"reason": "correction"}).status_code == 204
     rows = database_query(w.engine, select(RealtimeOutbox.event))
-    assert "leaderboard:updated" in rows and "leaderboard:unpublished" in rows
+    assert "leaderboard:updated" in rows
+    assert "leaderboard:unpublished" in rows
     inbox = call(w, "get", "/me/notifications", w.alice).json()
     assert {item["type"] for item in inbox["items"]} >= {"round.publish", "round.unpublish"}
 
@@ -234,7 +236,8 @@ def test_delivery_dedupe_unknown_and_realtime_retry(world, auth_settings, monkey
             jobs = NotificationJobs(session, auth_settings)
             assert jobs.deliver() == 1
             assert jobs.deliver() == 0
-            assert send.call_count == 1 and emit.call_count == 1
+            assert send.call_count == 1
+            assert emit.call_count == 1
             assert sorted(session.scalars(select(NotificationDelivery.status))) == [
                 "sent",
                 "unknown",
@@ -325,17 +328,20 @@ def test_export_limit_and_readiness(auth_client, monkeypatch):
     service = ReportService(
         SimpleNamespace(rows=AsyncMock(return_value=[{}] * 10001)), events, None
     )
+    operation = service.export(None, uuid4(), "teams", "xlsx", None, None)
     with pytest.raises(ApiError) as error:
-        asyncio.run(service.export(None, uuid4(), "teams", "xlsx", None, None))
+        asyncio.run(operation)
     assert error.value.code == "EXPORT_TOO_LARGE"
     monkeypatch.setattr(system_monitor, "ping_redis", AsyncMock())
     response = auth_client.get("/api/v1/ready")
-    assert response.status_code == 200 and response.json() == {"status": "ready"}
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
     monkeypatch.setattr(
         system_monitor, "ping_redis", AsyncMock(side_effect=RuntimeError("internal endpoint"))
     )
     response = auth_client.get("/api/v1/ready")
-    assert response.status_code == 503 and response.json() == {"status": "not_ready"}
+    assert response.status_code == 503
+    assert response.json() == {"status": "not_ready"}
 
 
 @pytest.mark.parametrize("status", [403, 503])
@@ -353,7 +359,7 @@ def test_watch_closes_on_revocation_or_auth_outage_instead_of_silently_dropping_
     )
     monkeypatch.setattr(realtime, "sio", server)
     monkeypatch.setattr(realtime, "ping_redis", AsyncMock())
-    monkeypatch.setattr(realtime.asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(realtime, "WATCH_INTERVAL", 0.001)
     monkeypatch.setattr(
         realtime,
         "allowed",
@@ -365,7 +371,11 @@ def test_watch_closes_on_revocation_or_auth_outage_instead_of_silently_dropping_
             )
         ),
     )
-    asyncio.run(realtime.watch("sid"))
+
+    async def watch():
+        await realtime.watch("sid", asyncio.Event())
+
+    asyncio.run(watch())
     server.disconnect.assert_awaited_once_with("sid")
     server.leave_room.assert_not_called()
 
@@ -376,9 +386,29 @@ def test_authorization_backend_error_is_not_reported_as_revoked_permission(monke
         "allowed",
         AsyncMock(side_effect=ApiError(503, "AUTH_UNAVAILABLE", "private detail")),
     )
+    operation = realtime.authorized("fixture-token", f"event:{uuid4()}:organizer")
     with pytest.raises(ApiError) as error:
-        asyncio.run(realtime.authorized("fixture-token", f"event:{uuid4()}:organizer"))
+        asyncio.run(operation)
     assert error.value.status_code == 503
+
+
+def test_watch_stops_on_disconnect_without_waiting_for_next_permission_check(monkeypatch):
+    server = Mock()
+    monkeypatch.setattr(realtime, "sio", server)
+    monkeypatch.setattr(realtime, "WATCH_INTERVAL", 60)
+
+    async def check():
+        stopped = asyncio.Event()
+        task = asyncio.create_task(realtime.watch("stopping-sid", stopped))
+        realtime.connections["stopping-sid"] = task, stopped
+        await asyncio.sleep(0)
+        await realtime.disconnect("stopping-sid")
+        await asyncio.wait_for(task, timeout=0.1)
+        assert stopped.is_set()
+
+    asyncio.run(check())
+    server.get_session.assert_not_called()
+    assert "stopping-sid" not in realtime.connections
 
 
 def test_in_app_delivery_does_not_wait_for_smtp_recipient_lock(world, auth_settings, monkeypatch):

@@ -12,6 +12,10 @@ from app.modules.notifications.models import (
     RealtimeOutbox,
 )
 
+TEAM_INVITATION = "team.invitation"
+ROUND_PUBLISH = "round.publish"
+ROUND_UNPUBLISH = "round.unpublish"
+
 
 class NotificationRepository:
     def __init__(self, session: object) -> None:
@@ -92,14 +96,14 @@ class NotificationRepository:
                 )
             )
         return or_(
-            Notification.type == "team.invitation",
+            Notification.type == TEAM_INVITATION,
             Notification.source.endswith(":public"),
             member & and_(*audiences),
         )
 
     def delivery_allowed(self, row: NotificationDelivery) -> bool:
         if row.recipient_id is None:
-            return row.notification_type == "team.invitation"
+            return row.notification_type == TEAM_INVITATION
         users = Base.metadata.tables["users"]
         query = select(users.c.id).where(
             users.c.id == row.recipient_id,
@@ -209,9 +213,10 @@ class NotificationRepository:
                     link=link,
                 )
                 self.session.add(notification)
-            for channel in (
-                ["in_app", "email"] if email and user_id else ["in_app"] if user_id else ["email"]
-            ):
+            channels = ["in_app"] if user_id else []
+            if email or not user_id:
+                channels.append("email")
+            for channel in channels:
                 self.session.add(
                     NotificationDelivery(
                         event_id=event_id,
@@ -274,7 +279,7 @@ async def invitation_recipient(
     repository.enqueue(
         event_id,
         f"invitation:{key}",
-        "team.invitation",
+        TEAM_INVITATION,
         [user or (None, email)],
         "SEAL - Team invitation",
         f"You are invited to join {team.name}",
@@ -285,13 +290,11 @@ async def invitation_recipient(
 async def capture_audit(
     session: object, source: UUID, action: str, target: str, data: dict
 ) -> None:
+    if action in {"round.lock", "round.unlock"}:
+        return
     tables = Base.metadata.tables
     repo = NotificationRepository(session)
-    event_id = data.get("event_id")
-    team_id = data.get("team_id")
-    round_id = None
     recipient_ids = None
-    audience = "all"
     if action == "team.reviewed":
         team_id = UUID(target)
         team = (
@@ -301,43 +304,8 @@ async def capture_audit(
         recipient_ids = [team.leader_id]
         if data.get("status") == "approved":
             repo.realtime("team:approved", f"event:{event_id}", {"team_id": target})
-    elif (
-        action
-        in {
-            "round.lock",
-            "round.unlock",
-            "round.publish",
-            "round.unpublish",
-            "round.eligibility_updated",
-        }
-        or action == "rounds.updated"
-    ):
-        round_id = UUID(target)
-        round_ = (
-            await session.execute(select(tables["rounds"]).where(tables["rounds"].c.id == round_id))
-        ).first()
-        event_id = round_.event_id
-        if action in {"round.publish", "round.unpublish"}:
-            repo.realtime(
-                "leaderboard:updated" if action == "round.publish" else "leaderboard:unpublished",
-                f"event:{event_id}",
-                {"round_id": target},
-            )
-            members, teams = tables["team_members"], tables["teams"]
-            recipient_ids = list(
-                await session.scalars(
-                    select(members.c.user_id)
-                    .join(teams, teams.c.id == members.c.team_id)
-                    .where(
-                        teams.c.event_id == event_id,
-                        teams.c.status == "approved",
-                        teams.c.disbanded_at.is_(None),
-                        members.c.status == "active",
-                    )
-                )
-            )
-        if action in {"round.lock", "round.unlock"}:
-            return
+    elif action in {ROUND_PUBLISH, ROUND_UNPUBLISH, "round.eligibility_updated", "rounds.updated"}:
+        event_id, recipient_ids = await round_audit(session, repo, target, action)
     elif action == "assignments.created":
         round_id = UUID(target)
         round_ = (
@@ -349,39 +317,7 @@ async def capture_audit(
         event_id = UUID(target)
         recipient_ids = [UUID(data["mentor_id"])]
     elif action in {"mentor.question_created", "mentor.note_created", "mentor.answer_created"}:
-        if action == "mentor.answer_created":
-            question = (
-                await session.execute(
-                    select(tables["mentor_questions"]).where(
-                        tables["mentor_questions"].c.id == UUID(data["question_id"])
-                    )
-                )
-            ).first()
-            team_id = question.team_id
-        else:
-            team_id = UUID(str(team_id))
-        team = (
-            await session.execute(select(tables["teams"]).where(tables["teams"].c.id == team_id))
-        ).first()
-        event_id = team.event_id
-        if action == "mentor.question_created":
-            assignments = tables["mentor_assignments"]
-            recipient_ids = list(
-                await session.scalars(
-                    select(assignments.c.mentor_id).where(
-                        assignments.c.team_id == team_id, assignments.c.revoked_at.is_(None)
-                    )
-                )
-            )
-        else:
-            members = tables["team_members"]
-            recipient_ids = list(
-                await session.scalars(
-                    select(members.c.user_id).where(
-                        members.c.team_id == team_id, members.c.status == "active"
-                    )
-                )
-            )
+        event_id, recipient_ids = await mentor_audit(session, action, data)
     elif action == "event.updated":
         event_id = UUID(target)
         changed = data.get("after", {})
@@ -390,16 +326,86 @@ async def capture_audit(
     else:
         return
     event_id = UUID(str(event_id))
-    query = repo.recipients(event_id, audience)
+    query = repo.recipients(event_id)
     if recipient_ids is not None:
         query = query.where(tables["users"].c.id.in_(recipient_ids))
     recipients = list((await session.execute(query)).all())
     title = {
         "team.reviewed": "SEAL - Team review",
-        "round.publish": "SEAL - Results published",
-        "round.unpublish": "SEAL - Results withdrawn",
+        ROUND_PUBLISH: "SEAL - Results published",
+        ROUND_UNPUBLISH: "SEAL - Results withdrawn",
     }.get(action, "SEAL - Event update")
     body = f"{title}. Open the event to view the current information."
     repo.enqueue(
         event_id, f"audit:{source}", action, recipients, title, body, f"/events/{event_id}"
     )
+
+
+async def round_audit(
+    session: object, repo: NotificationRepository, target: str, action: str
+) -> tuple[UUID, list | None]:
+    tables = Base.metadata.tables
+    round_ = (
+        await session.execute(select(tables["rounds"]).where(tables["rounds"].c.id == UUID(target)))
+    ).first()
+    event_id = round_.event_id
+    recipient_ids = None
+    if action in {ROUND_PUBLISH, ROUND_UNPUBLISH}:
+        repo.realtime(
+            "leaderboard:updated" if action == ROUND_PUBLISH else "leaderboard:unpublished",
+            f"event:{event_id}",
+            {"round_id": target},
+        )
+        members, teams = tables["team_members"], tables["teams"]
+        recipient_ids = list(
+            await session.scalars(
+                select(members.c.user_id)
+                .join(teams, teams.c.id == members.c.team_id)
+                .where(
+                    teams.c.event_id == event_id,
+                    teams.c.status == "approved",
+                    teams.c.disbanded_at.is_(None),
+                    members.c.status == "active",
+                )
+            )
+        )
+    return event_id, recipient_ids
+
+
+async def mentor_audit(session: object, action: str, data: dict) -> tuple[UUID, list]:
+    tables = Base.metadata.tables
+    team_id = data.get("team_id")
+    if action == "mentor.answer_created":
+        question = (
+            await session.execute(
+                select(tables["mentor_questions"]).where(
+                    tables["mentor_questions"].c.id == UUID(data["question_id"])
+                )
+            )
+        ).first()
+        team_id = question.team_id
+    else:
+        team_id = UUID(str(team_id))
+    team = (
+        await session.execute(select(tables["teams"]).where(tables["teams"].c.id == team_id))
+    ).first()
+    event_id = team.event_id
+    if action == "mentor.question_created":
+        assignments = tables["mentor_assignments"]
+        recipient_ids = list(
+            await session.scalars(
+                select(assignments.c.mentor_id).where(
+                    assignments.c.team_id == team_id, assignments.c.revoked_at.is_(None)
+                )
+            )
+        )
+    else:
+        members = tables["team_members"]
+        recipient_ids = list(
+            await session.scalars(
+                select(members.c.user_id).where(
+                    members.c.team_id == team_id, members.c.status == "active"
+                )
+            )
+        )
+    return event_id, recipient_ids

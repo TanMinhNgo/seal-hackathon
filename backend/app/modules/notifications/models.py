@@ -15,6 +15,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
 
+EVENTS_ID = "events.id"
+
 
 class Announcement(Base):
     __tablename__ = "announcements"
@@ -25,7 +27,7 @@ class Announcement(Base):
         ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    event_id: Mapped[UUID] = mapped_column(ForeignKey("events.id"), index=True)
+    event_id: Mapped[UUID] = mapped_column(ForeignKey(EVENTS_ID), index=True)
     title: Mapped[str] = mapped_column(String(150))
     body: Mapped[str] = mapped_column(Text)
     audience: Mapped[str] = mapped_column(String(20))
@@ -37,7 +39,7 @@ class Notification(Base):
     __tablename__ = "notifications"
     __table_args__ = (UniqueConstraint("source", "user_id", name="uq_notification_source_user"),)
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    event_id: Mapped[UUID] = mapped_column(ForeignKey("events.id"), index=True)
+    event_id: Mapped[UUID] = mapped_column(ForeignKey(EVENTS_ID), index=True)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
     source: Mapped[str] = mapped_column(String(200))
     type: Mapped[str] = mapped_column(String(100))
@@ -60,7 +62,7 @@ class NotificationDelivery(Base):
         CheckConstraint("channel IN ('in_app','email')", name="ck_delivery_channel"),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    event_id: Mapped[UUID] = mapped_column(ForeignKey("events.id"), index=True)
+    event_id: Mapped[UUID] = mapped_column(ForeignKey(EVENTS_ID), index=True)
     recipient_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
     recipient_key: Mapped[str] = mapped_column(String(64))
     source: Mapped[str] = mapped_column(String(200))

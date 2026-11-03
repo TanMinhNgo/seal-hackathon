@@ -1,4 +1,5 @@
 import hashlib
+from collections.abc import Iterable
 from pathlib import PurePosixPath
 from tempfile import SpooledTemporaryFile
 from time import time
@@ -63,7 +64,7 @@ class Storage:
         fields["api_key"] = self.options["api_key"]
         return f"https://api.cloudinary.com/v1_1/{self.options['cloud_name']}/raw/upload", fields
 
-    def backup(self, rows: object, archive: ZipFile) -> list[dict]:
+    def backup(self, rows: Iterable, archive: ZipFile) -> list[dict]:
         manifest = []
         with httpx.Client(timeout=60, follow_redirects=False) as client:
             for row in rows:

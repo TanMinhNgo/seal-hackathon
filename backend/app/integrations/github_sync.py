@@ -13,6 +13,7 @@ MAX_FILES = 1000
 MAX_PATCH_BYTES = 1024 * 1024
 RATE_KEY = "seal:github:sync:rate-limit"
 RATE_RESERVE = 500
+COMMIT_SHA = r"[0-9a-f]{40}"
 
 
 def budget_pause(settings: Settings) -> int:
@@ -96,7 +97,7 @@ class GitHubSync:
         owner, name = self.path.removeprefix("/repos/").split("/")
         for start in range(0, len(shas), 100):
             batch = shas[start : start + 100]
-            if any(not re.fullmatch(r"[0-9a-f]{40}", sha) for sha in batch):
+            if any(not re.fullmatch(COMMIT_SHA, sha) for sha in batch):
                 raise GitHubSyncError("GITHUB_UNAVAILABLE")
             heartbeat()
             fields = " ".join(
@@ -113,39 +114,37 @@ class GitHubSync:
                     "variables": {"owner": owner, "name": name},
                 },
             )
-            try:
-                if data.get("errors"):
-                    raise ValueError("Incomplete metadata batch")
-                repo = data["data"]["repository"]
-                if repo["isPrivate"] is not False:
-                    raise GitHubSyncError("REPO_NOT_ACCESSIBLE")
-                rows = []
-                for i, sha in enumerate(batch):
-                    row = repo[f"c{i}"]
-                    if row["oid"] != sha or any(
-                        type(row[k]) is not int or row[k] < 0 for k in ("additions", "deletions")
-                    ):
-                        raise ValueError("Invalid commit metadata")
-                    if not isinstance(row["message"], str):
-                        raise ValueError("Invalid commit message")
-                    rows.append(
-                        {
-                            "sha": sha,
-                            "author": (row.get("author") or {}).get("name") or "Unknown",
-                            "message": row["message"],
-                            "committed_at": datetime.fromisoformat(
-                                row["committedDate"].replace("Z", "+00:00")
-                            ),
-                            "additions": row["additions"],
-                            "deletions": row["deletions"],
-                            "url": f"{self.url}/commit/{sha}",
-                            "files": [],
-                            "diff_truncated": True,
-                        }
-                    )
-            except (KeyError, TypeError, ValueError, AttributeError):
-                raise GitHubSyncError("GITHUB_UNAVAILABLE") from None
-            yield from rows
+            yield from self.baseline_rows(data, batch)
+
+    def baseline_rows(self, data: object, batch: list[str]) -> list[dict]:
+        try:
+            if not isinstance(data, dict) or data.get("errors"):
+                raise ValueError("Incomplete metadata batch")
+            repo = data["data"]["repository"]
+            if repo["isPrivate"] is not False:
+                raise GitHubSyncError("REPO_NOT_ACCESSIBLE")
+            return [self.baseline_row(repo[f"c{i}"], sha) for i, sha in enumerate(batch)]
+        except (KeyError, TypeError, ValueError, AttributeError):
+            raise GitHubSyncError("GITHUB_UNAVAILABLE") from None
+
+    def baseline_row(self, row: dict, sha: str) -> dict:
+        if row["oid"] != sha or any(
+            type(row[k]) is not int or row[k] < 0 for k in ("additions", "deletions")
+        ):
+            raise ValueError("Invalid commit metadata")
+        if not isinstance(row["message"], str):
+            raise ValueError("Invalid commit message")
+        return {
+            "sha": sha,
+            "author": (row.get("author") or {}).get("name") or "Unknown",
+            "message": row["message"],
+            "committed_at": datetime.fromisoformat(row["committedDate"].replace("Z", "+00:00")),
+            "additions": row["additions"],
+            "deletions": row["deletions"],
+            "url": f"{self.url}/commit/{sha}",
+            "files": [],
+            "diff_truncated": True,
+        }
 
     def branch_head(self, branch: str | None) -> tuple[str, str]:
         meta, _ = self.get()
@@ -154,7 +153,7 @@ class GitHubSync:
         branch = branch or meta["default_branch"]
         head, _ = self.get("/commits/" + quote(branch, safe=""))
         sha = head["sha"]
-        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        if not re.fullmatch(COMMIT_SHA, sha):
             raise GitHubSyncError("GITHUB_UNAVAILABLE")
         return branch, sha
 
@@ -168,7 +167,7 @@ class GitHubSync:
                 raise GitHubSyncError("GITHUB_INCOMPLETE_HISTORY")
             for row in rows:
                 sha = row["sha"]
-                if not re.fullmatch(r"[0-9a-f]{40}", sha):
+                if not re.fullmatch(COMMIT_SHA, sha):
                     raise GitHubSyncError("GITHUB_UNAVAILABLE")
                 shas.append(sha)
                 parents.update(parent["sha"] for parent in row["parents"])

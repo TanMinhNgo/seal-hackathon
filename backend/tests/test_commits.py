@@ -104,10 +104,12 @@ def test_baseline_late_push_rewrite_incomplete_and_idempotency(commit_world):
     w.github.branch_head.return_value = ("main", B)
     assert run(w, shas=[B, A])
     late = call(w, w.base + "/commits/" + B).json()
-    assert late["in_event_window"] and not late["baseline"]
+    assert late["in_event_window"]
+    assert not late["baseline"]
     assert datetime.fromisoformat(late["committed_at"]) < datetime.now(UTC) - timedelta(days=90)
     stats = call(w, w.base + "/commit-stats").json()
-    assert stats["total"] == 1 and stats["sync_status"] == "ok"
+    assert stats["total"] == 1
+    assert stats["sync_status"] == "ok"
     w.github.branch_head.return_value = ("main", C)
     assert not run(w, shas=[C], complete=False)
     assert not call(w, w.base + "/commits/" + A).json()["removed"]
@@ -151,7 +153,8 @@ def test_manual_sync_lease_cooldown_queue_error_and_closed(commit_world):
     )
     w.publish.side_effect = ConnectionError("sensitive transport error")
     response = call(w, w.base + "/sync", method="post")
-    assert response.status_code == 503 and "sensitive" not in response.text
+    assert response.status_code == 503
+    assert "sensitive" not in response.text
     assert call(w, w.base + "/commit-stats").json()["running"]
     database_query(w.engine, update(Event).values(status="closed"))
     assert call(w, w.base + "/sync", method="post").status_code == 409
@@ -172,7 +175,8 @@ def test_worker_lease_duplicate_recovery_closed_and_error_safety(commit_world):
     with pytest.raises(GitHubSyncError):
         run(w)
     stats = call(w, w.base + "/commit-stats").json()
-    assert stats["sync_error"] == "GITHUB_RATE_LIMITED" and not stats["running"]
+    assert stats["sync_error"] == "GITHUB_RATE_LIMITED"
+    assert not stats["running"]
     database_query(w.engine, update(Event).values(status="closed"))
     assert run(w) is False
     assert call(w, w.base + "/commits", w.admin).json()["total"] == 1
@@ -189,7 +193,8 @@ def test_overview_inactivity_errors_and_config(commit_world):
     assert call(w, path, method="patch", body={"sync_interval_minutes": 0}).status_code == 422
     run(w)
     overview = call(w, path + "/commit-overview").json()
-    assert overview["total"] == 1 and overview["items"][0]["inactive"]
+    assert overview["total"] == 1
+    assert overview["items"][0]["inactive"]
     with Session(w.sync_engine) as session:
         session.add(
             AuditLog(
@@ -345,10 +350,12 @@ def test_github_diff_limits_missing_patch_and_renames(github, monkeypatch):
 
     transport(client, handle)
     result = client.detail(A, lambda: None)
-    assert result["diff_truncated"] and len(result["files"]) == 2
+    assert result["diff_truncated"]
+    assert len(result["files"]) == 2
     assert result["files"][0]["patch"] == "éé"
     assert result["files"][0]["previous_path"] == "old.py"
-    assert result["files"][1]["binary"] is None and result["files"][1]["truncated"]
+    assert result["files"][1]["binary"] is None
+    assert result["files"][1]["truncated"]
 
 
 def test_baseline_batches_keep_real_stats_without_individual_diffs(github):
@@ -361,7 +368,8 @@ def test_baseline_batches_keep_real_stats_without_individual_diffs(github):
         import re
 
         requests.append(request)
-        assert request.method == "POST" and request.url.path == "/graphql"
+        assert request.method == "POST"
+        assert request.url.path == "/graphql"
         body = json.loads(request.content)
         assert body["variables"] == {"owner": "example", "name": "public"}
         matches = re.findall(r'c(\d+): object\(oid:"([0-9a-f]{40})"\)', body["query"])
@@ -389,7 +397,8 @@ def test_baseline_batches_keep_real_stats_without_individual_diffs(github):
 
     transport(client, handle)
     rows = list(client.baseline(shas, lambda: None))
-    assert len(requests) == 3 and [r["sha"] for r in rows] == shas
+    assert len(requests) == 3
+    assert [r["sha"] for r in rows] == shas
     assert all(
         r["additions"] == 12 and r["deletions"] == 3 and r["files"] == [] and r["diff_truncated"]
         for r in rows
@@ -553,11 +562,14 @@ def test_task_retry_reserves_one_lease_and_stops_at_limit(commit_world, monkeypa
             assert retry.call_args.kwargs["eta"] == scheduled
             assert scheduled.utcoffset() == timedelta(0)
             assert delay - 10 <= (scheduled - datetime.now(UTC)).total_seconds() <= delay
-            assert stats["running"] and stats["sync_status"] == "error"
+            assert stats["running"]
+            assert stats["sync_status"] == "error"
             response = call(w, w.base + "/sync", method="post")
-            assert response.status_code == 409 and response.json()["code"] == "SYNC_IN_PROGRESS"
+            assert response.status_code == 409
+            assert response.json()["code"] == "SYNC_IN_PROGRESS"
             overview = call(w, f"/events/{w.event['id']}/commit-overview").json()["items"][0]
-            assert overview["next_retry_at"] == stats["next_retry_at"] and overview["running"]
+            assert overview["next_retry_at"] == stats["next_retry_at"]
+            assert overview["running"]
             with Session(w.sync_engine) as session:
                 state = session.get(CommitSyncState, UUID(w.team["id"]))
                 assert utc(state.lease_until) == scheduled + timedelta(seconds=LEASE_SECONDS)
@@ -574,7 +586,8 @@ def test_task_retry_reserves_one_lease_and_stops_at_limit(commit_world, monkeypa
         finally:
             tasks.sync_team.pop_request()
     # Every committed state visible to another connection retains the lease, including errors.
-    assert observed and all(s["running"] for s in observed)
+    assert observed
+    assert all(s["running"] for s in observed)
     assert len({s["next_retry_at"] for s in observed if s["next_retry_at"]}) == 3
     observed.clear()
     tasks.sync_team.push_request(retries=3)
@@ -583,14 +596,19 @@ def test_task_retry_reserves_one_lease_and_stops_at_limit(commit_world, monkeypa
     finally:
         tasks.sync_team.pop_request()
     stats = call(w, w.base + "/commit-stats").json()
-    assert not stats["running"] and stats["next_retry_at"] is None
-    assert stats["sync_status"] == "error" and stats["sync_error"] == "REPO_NOT_ACCESSIBLE"
-    assert all(s["running"] for s in observed[:-1]) and not observed[-1]["running"]
+    assert not stats["running"]
+    assert stats["next_retry_at"] is None
+    assert stats["sync_status"] == "error"
+    assert stats["sync_error"] == "REPO_NOT_ACCESSIBLE"
+    assert all(s["running"] for s in observed[:-1])
+    assert not observed[-1]["running"]
     dispatch_notifications(w, monkeypatch)
-    assert retry.call_count == 3 and send.call_count == 1
+    assert retry.call_count == 3
+    assert send.call_count == 1
     with Session(w.sync_engine) as session:
         state = session.get(CommitSyncState, UUID(w.team["id"]))
-        assert state.lease_token is None and state.lease_until is None
+        assert state.lease_token is None
+        assert state.lease_until is None
 
 
 @pytest.mark.parametrize("outcome", ["ok", "closed", "expired", "enqueue_error"])
@@ -621,7 +639,8 @@ def test_scheduled_retry_cleanup_and_enqueue_failure(commit_world, monkeypatch, 
             database_query(w.engine, update(Event).values(status="closed"))
         assert tasks.sync_team.run(w.team["id"], token) == (outcome == "ok")
     stats = call(w, w.base + "/commit-stats").json()
-    assert not stats["running"] and stats["next_retry_at"] is None
+    assert not stats["running"]
+    assert stats["next_retry_at"] is None
     if outcome in {"expired", "enqueue_error"}:
         assert stats["sync_error"] == "SYNC_WORKER_TIMEOUT"
 
@@ -691,7 +710,8 @@ def test_dispatch_continues_after_one_team_enqueue_failure(monkeypatch):
     monkeypatch.setattr(tasks, "CommitJobs", Mock(return_value=dispatcher))
     monkeypatch.setattr(tasks.sync_team, "apply_async", publish)
     assert tasks.sync_commits() == 1
-    assert publish.call_count == 2 and repository.release.call_count == 1
+    assert publish.call_count == 2
+    assert repository.release.call_count == 1
 
 
 def dispatch_notifications(w, monkeypatch):

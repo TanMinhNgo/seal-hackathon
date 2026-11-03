@@ -17,6 +17,7 @@ from app.integrations.system_monitor import ping_redis
 from app.modules.ai_reviews.repository import ReviewRepository
 from app.modules.ai_reviews.service import ReviewService
 from app.modules.auth.dependencies import get_auth_service
+from app.modules.auth.schemas import UserOutput
 from app.modules.commits.repository import CommitRepository
 from app.modules.commits.service import CommitService
 from app.modules.notifications.repository import NotificationRepository
@@ -40,13 +41,7 @@ async def allowed(
             return False
         events = get_event_service(session, auth)
         if parts[0] == "user" and len(parts) == 2:
-            if not actor or actor.id != resource_id:
-                return False
-            if event == "notification:new":
-                return await NotificationRepository(session).can_receive(
-                    actor.id, UUID(payload["id"])
-                )
-            return True
+            return await user_allowed(session, actor, resource_id, event, payload)
         if parts[0] == "event":
             await events.read(resource_id, actor)
             if len(parts) == 2:
@@ -57,24 +52,47 @@ async def allowed(
             return False
         if parts[0] != "team" or len(parts) != 2 or not actor or actor.is_admin:
             return False
-        teams = get_team_service(session, events, auth, settings)
-        submissions = get_submission_service(session, teams, events, auth, settings)
-        judging = get_judging_service(session, teams, events, auth, settings, submissions)
-        team = await teams.get(resource_id)
-        roles = {r.role for r in await auth.roles_in_event(team.event_id) if r.user_id == actor.id}
-        member = any(m.user_id == actor.id and m.status == "active" for m in team.members)
-        assigned = bool(roles & {"mentor", "judge"}) and await judging.can_read_team(
-            actor.id, resource_id
-        )
-        if not member and not assigned:
-            return False
-        commits = CommitService(CommitRepository(session), teams, events)
-        reviews = ReviewService(ReviewRepository(session), commits, teams, events, judging, auth)
-        ids, *_ = await reviews.scope(actor, resource_id, None)
-        if event == "ai_review:new":
-            row = await reviews.repository.review(UUID(payload["review_id"]))
-            return bool(row and row.team_id == resource_id and row.round_id in ids)
-        return bool(ids)
+        return await team_allowed(session, actor, resource_id, event, payload)
+
+
+async def user_allowed(
+    session: object,
+    actor: UserOutput | None,
+    resource_id: UUID,
+    event: str | None,
+    payload: dict | None,
+) -> bool:
+    if not actor or actor.id != resource_id:
+        return False
+    if event == "notification:new":
+        return await NotificationRepository(session).can_receive(actor.id, UUID(payload["id"]))
+    return True
+
+
+async def team_allowed(
+    session: object, actor: UserOutput, resource_id: UUID, event: str | None, payload: dict | None
+) -> bool:
+    settings = get_settings()
+    auth = get_auth_service(session, settings)
+    events = get_event_service(session, auth)
+    teams = get_team_service(session, events, auth, settings)
+    submissions = get_submission_service(session, teams, events, auth, settings)
+    judging = get_judging_service(session, teams, events, auth, settings, submissions)
+    team = await teams.get(resource_id)
+    roles = {r.role for r in await auth.roles_in_event(team.event_id) if r.user_id == actor.id}
+    member = any(m.user_id == actor.id and m.status == "active" for m in team.members)
+    assigned = bool(roles & {"mentor", "judge"}) and await judging.can_read_team(
+        actor.id, resource_id
+    )
+    if not member and not assigned:
+        return False
+    commits = CommitService(CommitRepository(session), teams, events)
+    reviews = ReviewService(ReviewRepository(session), commits, teams, events, judging, auth)
+    ids, *_ = await reviews.scope(actor, resource_id, None)
+    if event == "ai_review:new":
+        row = await reviews.repository.review(UUID(payload["review_id"]))
+        return bool(row and row.team_id == resource_id and row.round_id in ids)
+    return bool(ids)
 
 
 async def authorized(
@@ -119,27 +137,20 @@ sio = socketio.AsyncServer(
     cors_allowed_origins=settings.cors_origins,
     max_http_buffer_size=16384,
 )
-connections: dict[str, asyncio.Task] = {}
+WATCH_INTERVAL = 5
+connections: dict[str, tuple[asyncio.Task, asyncio.Event]] = {}
 
 
-async def watch(sid: str) -> None:
+async def watch(sid: str, stopped: asyncio.Event) -> None:
     try:
-        while sio.manager.is_connected(sid, "/"):
-            await asyncio.sleep(5)
-            await ping_redis(str(get_settings().redis_url))
-            state = await sio.get_session(sid)
-            token = state.get("token")
-            for room in sio.rooms(sid):
-                if room == sid:
-                    continue
-                if not await authorized(token, room):
-                    logger.info("Realtime permission revoked", extra={"room": room})
-                    await sio.disconnect(sid)
-                    return
-            # Token/session phải còn hợp lệ kể cả client chưa join room.
-            if token:
-                async with session_factory() as session:
-                    await get_auth_service(session, get_settings()).current_user(token)
+        while not stopped.is_set():
+            try:
+                await asyncio.wait_for(stopped.wait(), timeout=WATCH_INTERVAL)
+                return
+            except TimeoutError:
+                pass
+            if not await check_connection(sid):
+                return
     except asyncio.CancelledError:
         raise
     except Exception as exc:
@@ -149,6 +160,24 @@ async def watch(sid: str) -> None:
             getattr(exc, "code", "dependency_error"),
         )
         await sio.disconnect(sid)
+
+
+async def check_connection(sid: str) -> bool:
+    await ping_redis(str(get_settings().redis_url))
+    state = await sio.get_session(sid)
+    token = state.get("token")
+    for room in sio.rooms(sid):
+        if room == sid:
+            continue
+        if not await authorized(token, room):
+            logger.info("Realtime permission revoked", extra={"room": room})
+            await sio.disconnect(sid)
+            return False
+    # Token/session phải còn hợp lệ kể cả client chưa join room.
+    if token:
+        async with session_factory() as session:
+            await get_auth_service(session, get_settings()).current_user(token)
+    return True
 
 
 @sio.event
@@ -166,7 +195,8 @@ async def connect(sid: str, environ: dict, auth: object) -> bool:
         await sio.save_session(sid, {"token": token})
     except Exception:
         return False
-    connections[sid] = sio.start_background_task(watch, sid)
+    stopped = asyncio.Event()
+    connections[sid] = (sio.start_background_task(watch, sid, stopped), stopped)
     return True
 
 
@@ -195,15 +225,18 @@ async def join(sid: str, data: object) -> dict:
 
 @sio.event
 async def disconnect(sid: str, reason: str = "") -> None:
-    task = connections.pop(sid, None)
-    if task and task is not asyncio.current_task():
-        task.cancel()
+    connection = connections.pop(sid, None)
+    if connection:
+        _, stopped = connection
+        stopped.set()
 
 
 async def shutdown() -> None:
-    tasks = list(connections.values())
-    for task in tasks:
+    tasks = []
+    for task, stopped in connections.values():
+        stopped.set()
         task.cancel()
+        tasks.append(task)
     await asyncio.gather(*tasks, return_exceptions=True)
     connections.clear()
     if sio.eio.service_task_handle is not None:

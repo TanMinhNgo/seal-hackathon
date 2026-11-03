@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from uuid import UUID
@@ -10,6 +11,13 @@ from zipfile import ZipFile
 
 
 def restore(archive_path: Path, target: Path) -> int:
+    configured_root = os.environ.get("SEAL_RESTORE_ROOT")
+    if not configured_root:
+        raise ValueError("SEAL_RESTORE_ROOT must name an existing isolated directory")
+    root = Path(configured_root).resolve(strict=True)
+    target = target.resolve()
+    if not root.is_dir() or target == root or not target.is_relative_to(root):
+        raise ValueError("Restore target must be below SEAL_RESTORE_ROOT")
     target.mkdir(parents=True, exist_ok=False)
     with ZipFile(archive_path) as archive:
         manifest = json.loads(archive.read("manifest.json"))

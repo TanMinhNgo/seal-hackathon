@@ -42,53 +42,60 @@ class NotificationJobs:
                 self.session.rollback()
                 continue
             self.session.commit()
-            try:
-                if not NotificationRepository(self.session).delivery_allowed(row):
-                    row.status, row.error_code = "failed", "RECIPIENT_NO_LONGER_ELIGIBLE"
-                    self.session.commit()
-                    continue
-                if row.channel == "email" and not self.settings.smtp_host:
-                    row.status, row.error_code = "failed", "SMTP_NOT_CONFIGURED"
-                    self.session.commit()
-                    continue
-                if row.channel == "email":
-                    payload = row.payload
-                    mailer.send_email(
-                        payload["address"],
-                        payload["title"],
-                        payload["body"]
-                        + "\n"
-                        + str(self.settings.frontend_url).rstrip("/")
-                        + payload["link"],
-                    )
-                else:
-                    notification = self.session.scalar(
-                        select(Notification).where(
-                            Notification.user_id == row.recipient_id,
-                            Notification.source == row.source,
-                        )
-                    )
-                    publish(
-                        "notification:new",
-                        f"user:{row.recipient_id}",
-                        NotificationOutput.model_validate(notification).model_dump(mode="json"),
-                    )
-            except Exception:
-                row.status = "unknown" if row.channel == "email" else "queued"
-                row.error_code = (
-                    "SMTP_RECEIPT_UNKNOWN" if row.channel == "email" else "REALTIME_UNAVAILABLE"
-                )
-                logger.warning(
-                    "Notification delivery requires review", extra={"delivery_id": str(row.id)}
-                )
-            else:
-                row.status, row.error_code = "sent", None
+            if self.deliver_one(row):
                 count += 1
             row.updated_at = datetime.now(UTC)
             self.session.commit()
             if row.status == "queued":
                 break
         return count
+
+    def deliver_one(self, row: NotificationDelivery) -> bool:
+        try:
+            if not self.send(row):
+                return False
+        except Exception:
+            row.status = "unknown" if row.channel == "email" else "queued"
+            row.error_code = (
+                "SMTP_RECEIPT_UNKNOWN" if row.channel == "email" else "REALTIME_UNAVAILABLE"
+            )
+            logger.warning(
+                "Notification delivery requires review", extra={"delivery_id": str(row.id)}
+            )
+            return False
+        row.status, row.error_code = "sent", None
+        return True
+
+    def send(self, row: NotificationDelivery) -> bool:
+        if not NotificationRepository(self.session).delivery_allowed(row):
+            row.status, row.error_code = "failed", "RECIPIENT_NO_LONGER_ELIGIBLE"
+            return False
+        if row.channel == "email" and not self.settings.smtp_host:
+            row.status, row.error_code = "failed", "SMTP_NOT_CONFIGURED"
+            return False
+        if row.channel == "email":
+            payload = row.payload
+            mailer.send_email(
+                payload["address"],
+                payload["title"],
+                payload["body"]
+                + "\n"
+                + str(self.settings.frontend_url).rstrip("/")
+                + payload["link"],
+            )
+        else:
+            notification = self.session.scalar(
+                select(Notification).where(
+                    Notification.user_id == row.recipient_id,
+                    Notification.source == row.source,
+                )
+            )
+            publish(
+                "notification:new",
+                f"user:{row.recipient_id}",
+                NotificationOutput.model_validate(notification).model_dump(mode="json"),
+            )
+        return True
 
     def realtime(self, limit: int = 100) -> int:
         count = 0

@@ -160,7 +160,8 @@ def test_rubric_validation_and_start_freeze(world):
     base = f"/events/{w.event['id']}/rounds/{w.round['id']}/rubric"
     criterion = {"name": "Quality", "weight": 99, "max_score": 10, "order": 1}
     response = call(w, "put", base, body={"criteria": [criterion]})
-    assert response.status_code == 422 and response.json()["code"] == "RUBRIC_WEIGHT_INVALID"
+    assert response.status_code == 422
+    assert response.json()["code"] == "RUBRIC_WEIGHT_INVALID"
     criterion["weight"] = 100
     assert call(w, "put", base, w.admin, {"criteria": [criterion]}).status_code == 403
     assert call(w, "put", base, body={"criteria": [criterion]}).status_code == 200
@@ -214,7 +215,8 @@ def test_lock_publish_repair_revisions_and_close(judging_world):
         response = call(w, "get", w.base + "/judging-progress?limit=1&offset=100")
         assert response.status_code == 200, response.text
         data = response.json()
-        assert data["items"] == [] and data["total"] == 1
+        assert data["items"] == []
+        assert data["total"] == 1
         for field, expected in (("locked_at", locked), ("published_at", published)):
             assert bool(data[field]) is expected
             if expected:
@@ -236,8 +238,10 @@ def test_lock_publish_repair_revisions_and_close(judging_world):
     assert progress_state(True, True)["locked_at"] == locked
     assert call(w, "post", w.base + "/publish").status_code == 204
     board = w.client.get("/api/v1" + w.base + "/leaderboard").json()
-    assert board["publication_revision"] == 1 and board["total"] == 1
-    assert "judge" not in str(board) and "@example.com" not in str(board)
+    assert board["publication_revision"] == 1
+    assert board["total"] == 1
+    assert "judge" not in str(board)
+    assert "@example.com" not in str(board)
     assert call(w, "get", result, w.alice).json()["comments"]
     assert (
         call(w, "post", w.base + "/unlock", body={"reason": "correction"}).json()["code"]
@@ -274,7 +278,8 @@ def test_lock_publish_repair_revisions_and_close(judging_world):
         >= 2
     )
     actions = database_query(w.engine, select(AuditLog.action))
-    assert "round.unpublish" in actions and "assignment.reopen" in actions
+    assert "round.unpublish" in actions
+    assert "assignment.reopen" in actions
     database_query(
         w.engine, update(Event).where(Event.id == UUID(w.event["id"])).values(status="judging")
     )
@@ -309,7 +314,8 @@ def test_late_conflict_cancel_reassign_and_history(judging_world):
     )
     assert call(w, "get", f"/events/{w.event['id']}/conflicts", w.alice).status_code == 403
     new = call(w, "post", w.base + "/assignments/auto", body={"judges_per_team": 2}).json()
-    assert len(new["items"]) == 1 and new["unfilled"] == []
+    assert len(new["items"]) == 1
+    assert new["unfilled"] == []
     replacement = new["items"][0]
     assert replacement["judge"]["id"] != judge.id
     assert call(w, "get", f"/assignments/{a['id']}").json()["scores"]
@@ -608,9 +614,11 @@ def test_auto_underfilled_repeat_and_unsubmitted_progress(judging_world):
         )
         assert response.status_code == 201
     first = call(w, "post", w.base + "/assignments/auto", body={"judges_per_team": 2}).json()
-    assert len(first["items"]) == 1 and first["unfilled"][0]["missing_judges"] == 1
+    assert len(first["items"]) == 1
+    assert first["unfilled"][0]["missing_judges"] == 1
     second = call(w, "post", w.base + "/assignments/auto", body={"judges_per_team": 2}).json()
-    assert second["items"] == [] and second["unfilled"][0]["missing_judges"] == 1
+    assert second["items"] == []
+    assert second["unfilled"][0]["missing_judges"] == 1
     a = first["items"][0]
     assert call(w, "delete", f"/assignments/{a['id']}").status_code == 204
     from app.modules.submissions.models import Submission
@@ -681,11 +689,14 @@ def test_republish_blocked_by_late_conflict_until_reassigned(judging_world):
     assert response.status_code == 409
     assert response.json()["code"] == "SCORING_INCOMPLETE"
     detail = response.json()["detail"]
-    assert w.team["id"] in detail and w.team["name"] in detail
+    assert w.team["id"] in detail
+    assert w.team["name"] in detail
     assert "submitted=2, required=2, assigned=2, conflict_or_invalid_judge=True" in detail
-    assert judge.email not in detail and "Helpful feedback" not in detail
+    assert judge.email not in detail
+    assert "Helpful feedback" not in detail
     progress = call(w, "get", w.base + "/judging-progress").json()
-    assert progress["locked_at"] == locked_at and progress["published_at"] is None
+    assert progress["locked_at"] == locked_at
+    assert progress["published_at"] is None
     assert database_query(w.engine, select(PublicationSnapshot.data)) == [original]
     assert w.client.get("/api/v1" + w.base + "/leaderboard").json()["code"] == "NOT_PUBLISHED"
     assert call(w, "post", w.base + "/unlock", body={"reason": "conflict"}).status_code == 204
@@ -705,4 +716,5 @@ def test_republish_blocked_by_late_conflict_until_reassigned(judging_world):
     ) == [original]
     actions = database_query(w.engine, select(AuditLog.action))
     assert actions.count("round.publish") == 2
-    assert "round.unpublish" in actions and "assignment.cancel" in actions
+    assert "round.unpublish" in actions
+    assert "assignment.cancel" in actions

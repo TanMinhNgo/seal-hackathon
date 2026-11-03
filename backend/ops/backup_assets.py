@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +30,9 @@ class ZipStream:
 
 
 def backup(output: Path, recipient: str) -> int:
+    if not re.fullmatch(r"age1[0-9a-z]{58}", recipient):
+        raise ValueError("A native age public recipient is required")
+    output = output.resolve()
     if output.exists():
         raise ValueError("Backup output must not already exist")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -36,7 +40,7 @@ def backup(output: Path, recipient: str) -> int:
     storage = Storage(get_settings())
     manifest = []
     process = subprocess.Popen(
-        ["age", "-r", recipient, "-o", str(temporary)], stdin=subprocess.PIPE
+        ["age", f"--recipient={recipient}", f"--output={temporary}"], stdin=subprocess.PIPE
     )
     try:
         with (
@@ -67,7 +71,7 @@ def main() -> None:
     parser.add_argument("output", type=Path)
     parser.add_argument("--recipient", required=True)
     args = parser.parse_args()
-    count = backup(args.output.resolve(), args.recipient)
+    count = backup(args.output, args.recipient)
     sys.stdout.write(json.dumps({"files": count, "status": "encrypted"}) + "\n")
 
 
