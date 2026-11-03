@@ -67,7 +67,7 @@ Từ thư mục gốc, chạy toàn bộ và áp dụng migration:
 .\run.ps1
 ```
 
-Mở Docker Desktop trước khi chạy. Script khởi động PostgreSQL/Redis bằng Compose, áp dụng migration rồi chạy API (reload), frontend dev, Celery worker và một Beat **local**. Log ở `.logs/`. Nhấn Ctrl+C để dừng các tiến trình ứng dụng do script tạo; PostgreSQL/Redis vẫn chạy. Kiểm tra script bằng mock: `pwsh -File tests/run.test.ps1`.
+Mở Docker Desktop trước khi chạy. Script khởi động PostgreSQL/Redis bằng Compose, áp dụng migration rồi chạy API (reload), frontend dev, Celery worker mặc định, worker riêng queue `ai-review` (concurrency 1) và một Beat **local**. Log ở `.logs/`. Nhấn Ctrl+C để dừng các tiến trình ứng dụng do script tạo; PostgreSQL/Redis vẫn chạy. Kiểm tra script bằng mock: `pwsh -File tests/run.test.ps1`.
 
 ```powershell
 docker compose up -d
@@ -85,10 +85,12 @@ Worker trên Windows dùng pool solo. Nếu chạy từng phần thủ công:
 
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe -m celery -A worker.celery_app:celery_app worker --pool=solo --loglevel=info
+.\.venv\Scripts\python.exe -m celery -A worker.celery_app:celery_app worker -Q celery --pool=solo --loglevel=info
+# Terminal riêng cho AI; worker Linux dùng pool mặc định để có time limit.
+.\.venv\Scripts\python.exe -m celery -A worker.celery_app:celery_app worker -Q ai-review --concurrency=1 --pool=solo --hostname=ai@%h --loglevel=info
 ```
 
-Beat chưa đăng ký lịch vì chưa có task đồng bộ thật. Chỉ chạy một Beat khi bổ sung lịch theo cấu hình từng cuộc thi.
+Beat đã có lịch đồng bộ commit, dispatch AI, nhắc hạn nộp, gửi kết quả và dọn upload. Chỉ chạy một Beat. AI mặc định tắt; cấu hình `OPENAI_API_KEY` và `AI_MODEL` ở backend trước khi BTC bật cho vòng chưa bắt đầu. Snapshot, budget, quyền và nghiệm thu còn thiếu xem [bàn giao Phase 6](docs/phases/phase-6-ai-review.md#bàn-giao-backend-phase-6).
 
 ## Migration và kiểm tra
 

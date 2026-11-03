@@ -53,6 +53,10 @@ if TYPE_CHECKING:
 
 
 class JudgingService:
+    @staticmethod
+    def sync_round_published(session: object, round_id: UUID) -> bool:
+        return JudgingRepository.sync_round_published(session, round_id)
+
     # Hook quyền của Phase 2–3 chỉ dùng repository để tránh vòng dependency giữa service.
     def __init__(
         self,
@@ -81,6 +85,15 @@ class JudgingService:
         return await self.repository.mentor_assigned(
             user_id, team_id
         ) or await self.repository.judge_assigned(user_id, team_id, None)
+
+    async def ai_judge_assigned(self, user_id: UUID, team_id: UUID, round_id: UUID) -> bool:
+        return await self.repository.judge_assigned(user_id, team_id, round_id)
+
+    async def ai_assigned_rounds(self, user_id: UUID, team_id: UUID) -> set[UUID]:
+        return await self.repository.ai_assigned_rounds(user_id, team_id)
+
+    async def ai_published_rounds(self, round_ids: list[UUID]) -> set[UUID]:
+        return await self.repository.ai_published_rounds(round_ids)
 
     async def role_in_use(self, event_id: UUID, user_id: UUID, role: str) -> bool:
         return await self.repository.role_in_use(event_id, user_id, role)

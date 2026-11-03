@@ -16,6 +16,49 @@ from app.modules.judging.models import (
 
 
 class JudgingRepository:
+    async def ai_assigned_rounds(self, user_id: UUID, team_id: UUID) -> set[UUID]:
+        return set(
+            await self.session.scalars(
+                select(Assignment.round_id).where(
+                    Assignment.judge_id == user_id,
+                    Assignment.team_id == team_id,
+                    Assignment.status != "cancelled",
+                )
+            )
+        )
+
+    async def ai_published_rounds(self, round_ids: list[UUID]) -> set[UUID]:
+        return set(
+            await self.session.scalars(
+                select(RoundJudging.round_id)
+                .join(
+                    PublicationSnapshot,
+                    (PublicationSnapshot.round_id == RoundJudging.round_id)
+                    & (PublicationSnapshot.revision == RoundJudging.publication_revision),
+                )
+                .where(
+                    RoundJudging.round_id.in_(round_ids),
+                    RoundJudging.locked_at.is_not(None),
+                    RoundJudging.published_at.is_not(None),
+                )
+            )
+        )
+
+    @staticmethod
+    def sync_round_published(session: object, round_id: UUID) -> bool:
+        state = session.get(RoundJudging, round_id, populate_existing=True)
+        return bool(
+            state
+            and state.locked_at
+            and state.published_at
+            and session.scalar(
+                select(PublicationSnapshot.id).where(
+                    PublicationSnapshot.round_id == round_id,
+                    PublicationSnapshot.revision == state.publication_revision,
+                )
+            )
+        )
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 

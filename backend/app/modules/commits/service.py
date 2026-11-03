@@ -5,7 +5,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from app.core.errors import ApiError
 from app.core.schemas import Page, utc
-from app.modules.commits.repository import LEASE_SECONDS, CommitRepository
+from app.modules.commits.repository import LEASE_SECONDS, CommitJobRepository, CommitRepository
 from app.modules.commits.schemas import (
     CommitOutput,
     CommitOverview,
@@ -16,6 +16,10 @@ from app.modules.commits.schemas import (
 
 
 class CommitService:
+    @staticmethod
+    def ai_candidates(session: object, team_id: UUID, after: datetime) -> list[dict]:
+        return CommitJobRepository(session).ai_candidates(team_id, after)
+
     def __init__(
         self, repository: CommitRepository, teams: object = None, events: object = None
     ) -> None:
@@ -114,6 +118,7 @@ class CommitService:
         token = str(uuid4())
         state.lease_token = token
         state.lease_until = now + timedelta(seconds=LEASE_SECONDS)
+        state.next_retry_at = None
         state.last_attempt_at = now
         await self.events.log(actor, "commits.sync_requested", team_id, {}, "team")
         await self.repository.commit()

@@ -3,18 +3,20 @@
 import Link from "next/link";
 import { useState } from "react";
 import { FormError } from "@/features/auth/auth-card";
+import { AiConfigPanel, AiQuality } from "@/features/ai-reviews/ai-reviews";
 import { CommitOverviewPanel } from "@/features/commits/commits";
 import { JudgingPanel, MentorAssignmentsPanel } from "@/features/judging/organizer";
 import { RoundSubmissionsPanel } from "@/features/submissions/submissions";
 import { errorMessage } from "@/lib/api";
-import { CrudPanel, EventEditor, RegistrationsPanel, RolesPanel, StatusStepper, Tabs, TeamsPanel, useEvent } from "./manage";
+import { CrudPanel, EventEditor, RegistrationsPanel, RolesPanel, StatusStepper, Tabs, TeamsPanel, useEvent, useEventCache } from "./manage";
 
-type Tab = "info" | "rounds" | "tracks" | "prizes" | "roles" | "teams" | "registrations" | "submissions" | "judging" | "mentors" | "progress";
+type Tab = "info" | "rounds" | "tracks" | "prizes" | "roles" | "teams" | "registrations" | "submissions" | "judging" | "mentors" | "progress" | "ai";
 
 /** Khu vận hành của ban tổ chức cho một cuộc thi. */
 export function ManageEvent({ eventId }: { eventId: string }) {
   const event = useEvent(eventId);
   const [tab, setTab] = useState<Tab>("teams");
+  const cacheEvent = useEventCache(eventId);
 
   if (event.isError) return <main className="mx-auto max-w-[1360px] px-4 pt-10 sm:px-6"><FormError>{errorMessage(event.error)}</FormError></main>;
   if (!event.data) return <p role="status" className="px-6 pt-12 text-center">Đang tải…</p>;
@@ -50,6 +52,7 @@ export function ManageEvent({ eventId }: { eventId: string }) {
           ["registrations", "Người đăng ký"],
           ["submissions", "Bài nộp"],
           ["progress", "Tiến độ"],
+          ["ai", "AI review"],
           ["mentors", "Phân công mentor"],
           ["judging", "Chấm điểm"],
         ]}
@@ -73,7 +76,8 @@ export function ManageEvent({ eventId }: { eventId: string }) {
             <RoundSubmissionsPanel eventId={e.id} />
           </>
         )}
-        {tab === "progress" && <CommitOverviewPanel eventId={e.id} />}
+        {tab === "progress" && <CommitOverviewPanel eventId={e.id} teamExtra={(teamId) => <AiQuality teamId={teamId} mode="organizer" canReadFlags />} />}
+        {tab === "ai" && <AiConfigPanel event={e} onSaved={cacheEvent} />}
         {tab === "mentors" && <MentorAssignmentsPanel eventId={e.id} />}
         {tab === "judging" && <JudgingPanel eventId={e.id} />}
       </section>

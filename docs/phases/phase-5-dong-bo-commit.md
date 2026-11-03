@@ -12,12 +12,13 @@
 | GET | `/teams/{team_id}/commits` | thành viên, organizer, mentor/judge được phân công, admin | `?limit&offset` → `{items: Commit[], total}` |
 | GET | `/teams/{team_id}/commits/{sha}` | như trên | → `Commit` |
 | GET | `/teams/{team_id}/commits/{sha}/diff` | như trên | `?limit&offset` → `{items: DiffFile[], total, truncated}` (total là số file đã thu thập, không cam kết toàn bộ repo khi truncated) |
-| GET | `/teams/{team_id}/commit-stats` | như trên | → `CommitStats` |
-| GET | `/events/{event_id}/commit-overview` | organizer | `?limit&offset` → `{items: [{team: {id, name}, ...CommitStats, inactive}], total}` |
+| GET | `/teams/{team_id}/commit-stats` | như trên | → `CommitStats`, gồm `next_retry_at: datetime \| null` (UTC) |
+| GET | `/events/{event_id}/commit-overview` | organizer | `?limit&offset` → `{items: [{team: {id, name}, ...CommitStats, inactive}], total}`; mỗi đội có `next_retry_at` như stats |
 | POST | `/teams/{team_id}/sync` | organizer, chỉ event ongoing | → 202 `{task_id, status: queued}`; chạy lại đồng bộ bị lỗi/chậm |
 
 - `Commit`: `{id, sha, author, message, branch, committed_at, first_seen_at, additions, deletions, removed, url}` (`url` trỏ tới commit trên GitHub)
 - `CommitStats`: `{total, last_commit_at, last_synced_at, sync_status: ok|error|pending, sync_error}`
+- `next_retry_at: datetime | null` (UTC): thời điểm retry đã hẹn khi lease còn hiệu lực. Giữ `running=true` trong cả thời gian xếp hàng, chạy và chờ retry; `running=true, next_retry_at!=null` là chờ thử lại, kể cả khi đã qua giờ hẹn mà worker chưa nhận. Khi worker bắt đầu retry, xóa `next_retry_at`; khi hết retry/dừng hoặc lease hết hạn, stats trả `running=false, next_retry_at=null`. Ghi lỗi và chuyển sang token retry trong cùng transaction có fencing, không nhả lease giữa các lần retry; TTL tính từ giờ hẹn cộng thời gian lease. POST sync trong lúc chờ vẫn trả `409 SYNC_IN_PROGRESS`.
 - `inactive` = không có commit mới (theo `first_seen_at`) sau `inactivity_alert_hours`.
 - Timeline hiển thị theo `first_seen_at`; `committed_at` chỉ để tham khảo vì thí sinh có thể sửa.
 
@@ -58,11 +59,13 @@
 - [x] Admin `/admin/teams/[id]`: tab Commit (timeline, thống kê đồng bộ). Trang `/admin/teams/[id]/commits/[sha]`: thông tin commit, link GitHub, và các đánh giá gắn commit đó (góp ý mentor từ Phase 4, AI review từ Phase 6).
 - [x] BTC có nút đồng bộ lại kèm running/cooldown; mentor/judge xem file và patch thật, hiển thị binary/truncated/baseline thay vì giả lập diff đầy đủ.
 
-Trạng thái FE: [ ] — code xong 2026-11-02 (typecheck/lint/build xanh), chưa nghiệm thu trên trình duyệt với dữ liệu commit thật.
+Trạng thái FE: [x] — nghiệm thu trình duyệt 2026-11-02 với fixture riêng (`octocat/Hello-World` + repo không tồn tại + commit giả removed/binary/truncated): BTC (tổng quan, sync 202/409, lỗi `REPO_NOT_ACCESSIBLE`, inactive, diff), thí sinh, mentor (góp ý gắn commit), giám khảo (tiến độ, diff binary/không rõ/cắt, patch có `<script>` hiện dạng text), admin (timeline, trang commit, không có nút sync), màn 375px không tràn ngang. Đã sửa: timeline tự làm mới sau lượt sync, thông báo "đã xếp hàng" không treo, thẻ thống kê theo bề rộng khung chứa, năm hiển thị 4 chữ số. Sau bản sửa retry (`next_retry_at`): đã sinh lại type, thẻ thống kê và bảng tổng quan hiện "Chờ thử lại lúc …", nút khóa với nhãn "Đang chờ thử lại…"; nghiệm thu trình duyệt với repo không tồn tại: nút không bật lại trong lúc chờ retry.
 
 ## Bàn giao backend Phase 5
 
 Triển khai 2026-11-02 trong `backend/`, migration `0007_commits`; không thêm dependency. Sáu operation mới và hai field cấu hình trên API event hiện có. Dữ liệu đồng bộ nằm trong `commits`/`commit_sync_states`; không đưa lease worker vào schema đội công khai.
+
+Bản sửa retry 2026-11-02: migration `0008_commit_retry` thêm `next_retry_at` nullable; đã áp dụng PostgreSQL local, Alembic không drift. Một UPDATE có điều kiện token và lease còn hạn ghi đồng thời lỗi, cờ cảnh báo và token/ETA retry; không còn release rồi claim. Celery dùng ETA đúng bằng `next_retry_at`; khi bắt đầu retry đổi fencing token, xóa ETA và gia hạn lease. Khi triển khai cần chạy migration trước rồi khởi động lại API/worker để nạp code mới.
 
 ### Quyền, lỗi và vận hành
 
@@ -77,12 +80,13 @@ Triển khai 2026-11-02 trong `backend/`, migration `0007_commits`; không thêm
 
 1. Sinh lại type bằng `npm run gen:api` sau khi API chạy bản mới; không sửa tay type sinh tự động.
 2. Nối timeline + thống kê + phân trang commit/diff. Render message/path/patch dưới dạng text; nhãn baseline, removed, `in_event_window`, `binary=null` và truncated phải hiện đúng. Không hiển thị dữ liệu này như bằng chứng giờ viết code.
-3. Nối bảng BTC với response `{items,total}`; giữ riêng trạng thái lỗi và inactive. Nút sync xử lý 202, 409, 429, 503; sau 503 đọc lại stats vì job có thể đã vào queue. Poll stats khi `running=true`.
+3. Nối bảng BTC với response `{items,total}`; giữ riêng trạng thái lỗi và inactive. Nút sync xử lý 202, 409, 429, 503; sau 503 đọc lại stats vì job có thể đã vào queue. Poll stats và khóa nút khi `running=true`, kể cả `sync_status=error`. Field mới `next_retry_at: datetime | null` (UTC) có ở stats và từng đội overview: khác null thì hiển thị “Chờ thử lại” cùng giờ hẹn; null và running thì đang xếp hàng/chạy. Không bật lại nút khi đang chờ retry. Hết retry/dừng/hết lease trả `running=false, next_retry_at=null`.
 4. Form cấu hình dùng giới hạn đã ghi; mentor note/câu hỏi được gửi `commit_sha` có thật của đúng đội. Thu hồi phân công phải xử lý 403 và xóa dữ liệu đã cache của đội khỏi màn hình.
 5. Admin chỉ xem commit/diff/thống kê; không có nút sync. Panel AI nối ở Phase 6.
 
 ### Bằng chứng và giới hạn nghiệm thu
 
+- Bản sửa retry: `tests/test_commits.py tests/test_worker.py` có **25 test qua trên SQLite và PostgreSQL** (24 test commit, 1 test worker); SQLite chạy thêm `tests/test_auth_migration.py` thành **26 test qua**, gồm upgrade/downgrade/upgrade và kiểm tra drift. Ruff lint/format và `git diff --check` qua. Test quan sát stats qua kết nối riêng sau từng commit DB: không lộ `running=false` khi còn retry; chờ retry trả 409 và ETA UTC khớp ở stats/overview; hết 3 retry nhả lease và xóa ETA, giữ lỗi. Có kiểm tra token cũ bị chặn, không claim chồng, email một lần, retry thành công/event dừng/lease hết hạn/enqueue retry lỗi. Chưa chạy lại toàn suite hoặc nghiệm thu browser/broker thật cho bản sửa này; trạng thái FE phía trên là nghiệm thu trước khi thêm field.
 - Migration `0007_commits (head)` đã áp dụng PostgreSQL local; `alembic check` không có drift. Migration upgrade/downgrade/upgrade trên SQLite đã qua test.
 - Smoke GitHub thật với `octocat/Hello-World`: branch `master`, 3 commit, lịch sử đầy đủ, diff head có 1 file, không truncated. Chỉ đọc provider, không push hay đổi repo.
 - `ruff format --check .`: 99 file đúng format; `ruff check .`: xanh. `git diff --check`: không lỗi whitespace.

@@ -14,6 +14,7 @@ LEASE_SECONDS = 300
 
 
 def stats(state: CommitSyncState | None, total: int, last: datetime | None) -> CommitStats:
+    running = bool(state and state.lease_until and utc(state.lease_until) > datetime.now(UTC))
     values = (
         {
             key: getattr(state, key)
@@ -39,7 +40,8 @@ def stats(state: CommitSyncState | None, total: int, last: datetime | None) -> C
     return CommitStats(
         total=total,
         last_commit_at=last,
-        running=bool(state and state.lease_until and utc(state.lease_until) > datetime.now(UTC)),
+        running=running,
+        next_retry_at=state.next_retry_at if running else None,
         **values,
     )
 
@@ -132,6 +134,20 @@ class CommitJobRepository:
             row = self.session.get(CommitSyncState, team_id)
         return row
 
+    def ai_candidates(self, team_id: UUID, after: datetime) -> list[dict]:
+        return [
+            {"sha": sha, "first_seen_at": seen}
+            for sha, seen in self.session.execute(
+                select(Commit.sha, Commit.first_seen_at).where(
+                    Commit.team_id == team_id,
+                    Commit.first_seen_at > after,
+                    Commit.in_event_window.is_(True),
+                    Commit.baseline.is_(False),
+                    Commit.removed.is_(False),
+                )
+            )
+        ]
+
     def claim(self, team_id: UUID, token: str, interval: int) -> bool:
         self.state(team_id)
         now = datetime.now(UTC)
@@ -152,6 +168,7 @@ class CommitJobRepository:
                 lease_token=token,
                 lease_until=now + timedelta(seconds=LEASE_SECONDS),
                 last_attempt_at=now,
+                next_retry_at=None,
             )
         )
         self.session.commit()
@@ -196,7 +213,11 @@ class CommitJobRepository:
                 CommitSyncState.lease_token == queued,
                 CommitSyncState.lease_until > datetime.now(UTC),
             )
-            .values(lease_token=running)
+            .values(
+                lease_token=running,
+                lease_until=datetime.now(UTC) + timedelta(seconds=LEASE_SECONDS),
+                next_retry_at=None,
+            )
         )
         self.session.commit()
         return bool(result.rowcount)
@@ -209,10 +230,48 @@ class CommitJobRepository:
             .values(
                 lease_token=None,
                 lease_until=None,
+                next_retry_at=None,
                 **({"sync_status": "error", "sync_error": error} if error else {}),
             )
         )
         self.session.commit()
+
+    def fail(
+        self,
+        team_id: UUID,
+        token: str,
+        error: str,
+        retry_token: str | None,
+        delay: int,
+    ) -> bool:
+        state = self.state(team_id)
+        notify = error == "REPO_NOT_ACCESSIBLE" and not state.notified
+        now = datetime.now(UTC)
+        next_retry_at = now + timedelta(seconds=delay) if retry_token else None
+        # Mark before transport: ambiguous SMTP acceptance must not cause duplicate mail.
+        result = self.session.execute(
+            update(CommitSyncState)
+            .execution_options(synchronize_session="fetch")
+            .where(
+                CommitSyncState.team_id == team_id,
+                CommitSyncState.lease_token == token,
+                CommitSyncState.lease_until > now,
+            )
+            .values(
+                sync_status="error",
+                sync_error=error,
+                notified=state.notified or notify,
+                lease_token=retry_token,
+                next_retry_at=next_retry_at,
+                lease_until=next_retry_at + timedelta(seconds=LEASE_SECONDS)
+                if retry_token
+                else None,
+            )
+        )
+        if not result.rowcount:
+            raise RuntimeError("SYNC_LEASE_LOST")
+        self.session.commit()
+        return notify
 
     def stored(self, team_id: UUID) -> dict[str, Commit]:
         return {

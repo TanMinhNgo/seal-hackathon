@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 from app.core.config import get_settings
 from app.core.db import Base
+from app.modules.ai_reviews import models as ai_review_models  # noqa: F401
 from app.modules.auth import models  # noqa: F401
 from app.modules.commits import models as commit_models  # noqa: F401
 from app.modules.events import models as event_models  # noqa: F401

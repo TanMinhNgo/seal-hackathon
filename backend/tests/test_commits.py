@@ -7,16 +7,17 @@ import httpx
 import pytest
 from celery.exceptions import Retry
 from pydantic import SecretStr
-from sqlalchemy import create_engine, update
+from sqlalchemy import create_engine, event, update
 from sqlalchemy.orm import Session
 
+from app.core.schemas import utc
 from app.integrations import github_sync
 from app.integrations.github_sync import GitHubSync, GitHubSyncError
 from app.modules.auth.models import AuditLog
 from app.modules.commits import jobs
 from app.modules.commits.jobs import CommitJobs
 from app.modules.commits.models import CommitSyncState
-from app.modules.commits.repository import CommitJobRepository
+from app.modules.commits.repository import LEASE_SECONDS, CommitJobRepository
 from app.modules.events.models import Event
 from app.modules.teams.models import TeamMember
 from tests.test_auth import database_query
@@ -421,21 +422,105 @@ def test_mentor_commit_link_and_revocation(commit_world):
 
 def test_task_retry_reserves_one_lease_and_stops_at_limit(commit_world, monkeypatch):
     w = commit_world
+    observed = []
+
+    def factory():
+        session = Session(w.sync_engine, expire_on_commit=False)
+        event.listen(
+            session,
+            "after_commit",
+            lambda _: observed.append(call(w, w.base + "/commit-stats").json()),
+        )
+        return session
+
+    monkeypatch.setattr(tasks, "sync_session_factory", factory)
+    monkeypatch.setattr(tasks, "get_settings", lambda: w.settings)
+    retry = Mock(return_value=Retry())
+    monkeypatch.setattr(tasks.sync_team, "retry", retry)
+    send = Mock()
+    monkeypatch.setattr(jobs.mailer, "send_email", send)
+    w.github.history.side_effect = GitHubSyncError("REPO_NOT_ACCESSIBLE", 120)
+    with Session(w.sync_engine, expire_on_commit=False) as session:
+        token = str(uuid4())
+        assert CommitJobRepository(session).claim(UUID(w.team["id"]), token, 0)
+    for attempt, delay in enumerate([120, 120, 240]):
+        tasks.sync_team.push_request(retries=attempt)
+        try:
+            with pytest.raises(Retry):
+                tasks.sync_team.run(w.team["id"], token)
+            stats = call(w, w.base + "/commit-stats").json()
+            scheduled = datetime.fromisoformat(stats["next_retry_at"])
+            assert retry.call_args.kwargs["eta"] == scheduled
+            assert scheduled.utcoffset() == timedelta(0)
+            assert delay - 10 <= (scheduled - datetime.now(UTC)).total_seconds() <= delay
+            assert stats["running"] and stats["sync_status"] == "error"
+            response = call(w, w.base + "/sync", method="post")
+            assert response.status_code == 409 and response.json()["code"] == "SYNC_IN_PROGRESS"
+            overview = call(w, f"/events/{w.event['id']}/commit-overview").json()["items"][0]
+            assert overview["next_retry_at"] == stats["next_retry_at"] and overview["running"]
+            with Session(w.sync_engine) as session:
+                state = session.get(CommitSyncState, UUID(w.team["id"]))
+                assert utc(state.lease_until) == scheduled + timedelta(seconds=LEASE_SECONDS)
+                assert state.lease_token == retry.call_args.kwargs["args"][1]
+                repo = CommitJobRepository(session)
+                assert not repo.claim(state.team_id, str(uuid4()), 0)
+                with pytest.raises(RuntimeError, match="SYNC_LEASE_LOST"):
+                    repo.fail(state.team_id, token, "GITHUB_UNAVAILABLE", None, 0)
+                session.rollback()
+            assert tasks.sync_team.run(w.team["id"], token) is False
+            token = retry.call_args.kwargs["args"][1]
+        finally:
+            tasks.sync_team.pop_request()
+    # Every committed state visible to another connection retains the lease, including errors.
+    assert observed and all(s["running"] for s in observed)
+    assert len({s["next_retry_at"] for s in observed if s["next_retry_at"]}) == 3
+    observed.clear()
+    tasks.sync_team.push_request(retries=3)
+    try:
+        assert tasks.sync_team.run(w.team["id"], token) is False
+    finally:
+        tasks.sync_team.pop_request()
+    stats = call(w, w.base + "/commit-stats").json()
+    assert not stats["running"] and stats["next_retry_at"] is None
+    assert stats["sync_status"] == "error" and stats["sync_error"] == "REPO_NOT_ACCESSIBLE"
+    assert all(s["running"] for s in observed[:-1]) and not observed[-1]["running"]
+    assert retry.call_count == 3 and send.call_count == 1
+    with Session(w.sync_engine) as session:
+        state = session.get(CommitSyncState, UUID(w.team["id"]))
+        assert state.lease_token is None and state.lease_until is None
+
+
+@pytest.mark.parametrize("outcome", ["ok", "closed", "expired", "enqueue_error"])
+def test_scheduled_retry_cleanup_and_enqueue_failure(commit_world, monkeypatch, outcome):
+    w = commit_world
     monkeypatch.setattr(
         tasks, "sync_session_factory", lambda: Session(w.sync_engine, expire_on_commit=False)
     )
     monkeypatch.setattr(tasks, "get_settings", lambda: w.settings)
-    retry = Mock(return_value=Retry())
+    retry = Mock(
+        side_effect=ConnectionError() if outcome == "enqueue_error" else None, return_value=Retry()
+    )
     monkeypatch.setattr(tasks.sync_team, "retry", retry)
-    w.github.history.side_effect = GitHubSyncError("GITHUB_RATE_LIMITED", 120)
-    with Session(w.sync_engine, expire_on_commit=False) as session:
-        token = str(uuid4())
-        assert CommitJobRepository(session).claim(UUID(w.team["id"]), token, 0)
-    with pytest.raises(Retry):
+    w.github.history.side_effect = GitHubSyncError("GITHUB_UNAVAILABLE")
+    token = call(w, w.base + "/sync", method="post").json()["task_id"]
+    with pytest.raises(ConnectionError if outcome == "enqueue_error" else Retry):
         tasks.sync_team.run(w.team["id"], token)
-    assert retry.call_args.kwargs["countdown"] == 120
-    assert call(w, w.base + "/commit-stats").json()["running"]
-    assert tasks.sync_team.run(w.team["id"], token) is False
+    token = retry.call_args.kwargs["args"][1]
+    if outcome in {"expired", "enqueue_error"}:
+        database_query(
+            w.engine,
+            update(CommitSyncState).values(lease_until=datetime.now(UTC) - timedelta(seconds=1)),
+        )
+        assert not tasks.sync_team.run(w.team["id"], token)
+    else:
+        w.github.history.side_effect = None
+        if outcome == "closed":
+            database_query(w.engine, update(Event).values(status="closed"))
+        assert tasks.sync_team.run(w.team["id"], token) == (outcome == "ok")
+    stats = call(w, w.base + "/commit-stats").json()
+    assert not stats["running"] and stats["next_retry_at"] is None
+    if outcome in {"expired", "enqueue_error"}:
+        assert stats["sync_error"] == "SYNC_WORKER_TIMEOUT"
 
 
 def test_expired_lease_recovers_without_waiting_event_interval(commit_world):

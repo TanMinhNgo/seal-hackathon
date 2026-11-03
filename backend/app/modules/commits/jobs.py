@@ -27,7 +27,9 @@ class CommitJobs:
             for team in TeamService.sync_teams(session, event.id)
         ]
 
-    def run(self, team_id: UUID, queued: str) -> bool:
+    def run(
+        self, team_id: UUID, queued: str, retry_token: str | None = None, retry_delay: int = 60
+    ) -> bool:
         token = str(uuid4())
         if not self.repository.start(team_id, queued, token):
             return False
@@ -39,6 +41,8 @@ class CommitJobs:
         client = None
         try:
             state = self.repository.state(team_id)
+            previous_head = state.head_sha
+            previous_sync = state.last_synced_at
             client = GitHubSync(self.settings, team.repo_url)
 
             def heartbeat() -> None:
@@ -89,6 +93,12 @@ class CommitJobs:
                 state.sync_status = "ok"
                 state.sync_error = None
                 state.notified = False
+                if previous_head and previous_sync and event.ai_review_enabled:
+                    from app.modules.ai_reviews.jobs import ReviewJobs
+
+                    ReviewJobs.schedule(
+                        self.repository.session, event, team, previous_head, head, previous_sync
+                    )
             else:
                 state.sync_status = "error"
                 state.sync_error = "GITHUB_INCOMPLETE_HISTORY"
@@ -98,18 +108,15 @@ class CommitJobs:
             return complete
         except Exception as exc:
             self.repository.session.rollback()
-            code = exc.code if isinstance(exc, GitHubSyncError) else "GITHUB_UNAVAILABLE"
+            error = (
+                exc if isinstance(exc, GitHubSyncError) else GitHubSyncError("GITHUB_UNAVAILABLE")
+            )
+            delay = min(240, max(error.retry_after, retry_delay))
             try:
-                self.repository.heartbeat(team_id, token)
+                notify = self.repository.fail(team_id, token, error.code, retry_token, delay)
             except RuntimeError:
+                self.repository.session.rollback()
                 return False
-            state = self.repository.state(team_id)
-            notify = code == "REPO_NOT_ACCESSIBLE" and not state.notified
-            # Mark before transport: ambiguous SMTP acceptance must not cause duplicate mail.
-            if notify:
-                state.notified = True
-            self.repository.commit()
-            self.repository.release(team_id, token, code)
             if notify and self.settings.smtp_host:
                 for recipient in AuthService.sync_recipients(self.repository.session, event.id):
                     try:
@@ -124,9 +131,7 @@ class CommitJobs:
                             "Repository alert delivery requires review",
                             extra={"team_id": str(team_id)},
                         )
-            if isinstance(exc, GitHubSyncError):
-                raise
-            raise GitHubSyncError(code) from None
+            raise GitHubSyncError(error.code, delay) from None
         finally:
             if client:
                 client.close()

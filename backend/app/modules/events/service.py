@@ -6,13 +6,17 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
+from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.core.schemas import Page, utc
 from app.modules.auth.schemas import AdminUserInput, UserOutput
 from app.modules.auth.service import AuthService
 from app.modules.events.repository import EventRepository
 from app.modules.events.schemas import (
+    AiConfig,
+    AiSettings,
     EventCreate,
     EventInput,
     EventOutput,
@@ -33,6 +37,27 @@ if TYPE_CHECKING:
 
 
 class EventService:
+    @staticmethod
+    def ai_snapshot(event: object) -> dict:
+        return AiConfig(
+            **{key: getattr(event, key) for key in AiSettings.model_fields},
+            model=get_settings().ai_model,
+        ).model_dump()
+
+    @staticmethod
+    def ai_rounds(session: object, event_id: UUID, team_id: UUID) -> list:
+        from app.modules.judging.service import JudgingService
+
+        return [
+            r
+            for r, source in EventRepository.ai_rounds(session, event_id, team_id)
+            if source is None or JudgingService.sync_round_published(session, source)
+        ]
+
+    @staticmethod
+    def ai_guard(session: object, event_id: UUID) -> object | None:
+        return EventRepository.ai_guard(session, event_id)
+
     @staticmethod
     def sync_guard(session: object, event_id: UUID) -> bool:
         return EventRepository.sync_guard(session, event_id)
@@ -172,14 +197,18 @@ class EventService:
             raise ApiError(403, "FORBIDDEN", "Administrators may only edit event metadata")
         if "slug" in values and values["slug"] != event.slug and event.status != "draft":
             raise ApiError(409, "RESOURCE_IN_USE", "Event slug is frozen")
-        protected = set(EventInput.model_fields) - {
-            "name",
-            "description",
-            "banner_url",
-            "slug",
-            "sync_interval_minutes",
-            "inactivity_alert_hours",
-        }
+        protected = (
+            set(EventInput.model_fields)
+            - {
+                "name",
+                "description",
+                "banner_url",
+                "slug",
+                "sync_interval_minutes",
+                "inactivity_alert_hours",
+            }
+            - set(AiSettings.model_fields)
+        )
         if values.keys() & protected and (
             event.status in {"ongoing", "judging"} or datetime.now(UTC) >= utc(event.starts_at)
         ):
@@ -188,6 +217,10 @@ class EventService:
             )
         merged = {key: getattr(event, key) for key in EventInput.model_fields} | values
         self.validate_schedule(merged)
+        try:
+            AiSettings.model_validate({key: merged[key] for key in AiSettings.model_fields})
+        except ValidationError:
+            raise ApiError(422, "INVALID_AI_SETTINGS", "Invalid AI thresholds or budget") from None
         for round_ in await self.repository.all_rounds(event_id):
             if (
                 not utc(merged["starts_at"])
@@ -200,6 +233,10 @@ class EventService:
             values["banner_url"] = str(values["banner_url"])
         for key, value in values.items():
             setattr(event, key, value)
+        if values.keys() & AiSettings.model_fields.keys():
+            for round_ in await self.repository.all_rounds(event_id):
+                if datetime.now(UTC) < utc(round_.starts_at):
+                    round_.ai_config = self.ai_snapshot(event)
         await self.repository.flush()
         if values:
             await self.log(actor, "event.updated", event_id, {"after": values})
@@ -265,7 +302,10 @@ class EventService:
                 setattr(child, key, value)
             await self.repository.flush()
         else:
-            child = await self.repository.create_child(kind, event_id, data.model_dump())
+            initial = data.model_dump()
+            if kind == "rounds":
+                initial["ai_config"] = self.ai_snapshot(event)
+            child = await self.repository.create_child(kind, event_id, initial)
         await self.log(
             actor,
             f"{kind}.updated" if child_id else f"{kind}.created",

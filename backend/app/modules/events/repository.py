@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import delete, func, or_, select
@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError
+from app.core.schemas import utc
 from app.modules.events.models import Event, Prize, Round, RoundEligibility, Track
 
 Child = Round | Track | Prize
@@ -15,6 +16,38 @@ CHILDREN = {"rounds": Round, "tracks": Track, "prizes": Prize}
 
 
 class EventRepository:
+    @staticmethod
+    def ai_guard(session: object, event_id: UUID) -> Event | None:
+        return session.scalar(
+            select(Event)
+            .where(
+                Event.id == event_id,
+                Event.status.in_(["ongoing", "judging"]),
+                Event.archived_at.is_(None),
+            )
+            .execution_options(populate_existing=True)
+        )
+
+    @staticmethod
+    def ai_rounds(session: object, event_id: UUID, team_id: UUID) -> list[tuple]:
+        rounds = list(
+            session.scalars(select(Round).where(Round.event_id == event_id).order_by(Round.order))
+        )
+        eligible = dict(
+            session.execute(
+                select(RoundEligibility.round_id, RoundEligibility.source_round_id).where(
+                    RoundEligibility.team_id == team_id
+                )
+            ).all()
+        )
+        return [
+            (r, eligible.get(r.id))
+            for r in rounds
+            if r.starts_at
+            and (r == rounds[0] or eligible.get(r.id) is not None)
+            and utc(r.starts_at) <= datetime.now(UTC)
+        ]
+
     @staticmethod
     def sync_guard(session: object, event_id: UUID) -> bool:
         event = session.scalar(

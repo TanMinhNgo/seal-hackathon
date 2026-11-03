@@ -12,10 +12,11 @@ import { FormError } from "@/features/auth/auth-card";
 import { useMyEvents } from "@/features/auth/use-event-roles";
 import { Tabs } from "@/features/events/manage";
 import type { Event, Page, Team, Track } from "@/features/events/types";
+import { AiQuality } from "@/features/ai-reviews/ai-reviews";
 import { TeamProgress } from "@/features/commits/commits";
 import { MentorNotes, TeamQuestions } from "@/features/mentor/team-support";
 import { TeamResults } from "@/features/results/team-result";
-import { SubmitTab } from "@/features/submissions/submissions";
+import { SubmitTab, useRounds } from "@/features/submissions/submissions";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 
@@ -40,6 +41,7 @@ export function MyTeam({ slug }: { slug: string }) {
   const queryClient = useQueryClient();
   const event = useQuery({ queryKey: ["event-slug", slug], queryFn: async () => (await api.get<Event>(`/events/by-slug/${encodeURIComponent(slug)}`)).data });
   const eventId = event.data?.id;
+  const rounds = useRounds(eventId ?? "");
   const tracks = useQuery({
     queryKey: ["tracks", eventId],
     queryFn: async () => (await api.get<Page<Track>>(`/events/${eventId}/tracks`, { params: { limit: 100 } })).data.items,
@@ -105,6 +107,8 @@ export function MyTeam({ slug }: { slug: string }) {
   const panes: [TeamTab, string, ReactNode][] = [
     ...(started ? [["submit", "Nộp bài", <SubmitTab key="s" event={ev} team={t} leader={t.leader_id === user.id} />] as [TeamTab, string, ReactNode]] : []),
     ...(started ? [["progress", "Tiến độ", <TeamProgress key="p" teamId={t.id} />] as [TeamTab, string, ReactNode]] : []),
+    // Quyền xem theo snapshot từng vòng; vòng nào bật AI và cho thí sinh xem thì mới có tab, BE quyết định thời điểm mở
+    ...(started && rounds.data?.some((r) => r.ai_config.ai_review_enabled && r.ai_config.ai_visible_to_participants !== "never") ? [["ai", "Chất lượng code", <AiQuality key="a" teamId={t.id} mode="readonly" />] as [TeamTab, string, ReactNode]] : []),
     ["team", "Đội & repo", <TeamView key="t" event={ev} team={t} tracks={tracks.data ?? []} userId={user.id} frozen={frozen} onTeam={setTeam} onReload={reload} />],
     ["questions", "Hỏi mentor", <TeamQuestions key="q" teamId={t.id} mode="member" userId={user.id} isLeader={t.leader_id === user.id} />],
     ["notes", "Góp ý mentor", <MentorNotes key="n" teamId={t.id} />],
@@ -118,7 +122,7 @@ export function MyTeam({ slug }: { slug: string }) {
   );
 }
 
-type TeamTab = "submit" | "progress" | "team" | "questions" | "notes" | "result";
+type TeamTab = "submit" | "progress" | "ai" | "team" | "questions" | "notes" | "result";
 
 function TeamTabs({ panes }: { panes: [TeamTab, string, ReactNode][] }) {
   const [tab, setTab] = useState<TeamTab>(panes[0][0]);
