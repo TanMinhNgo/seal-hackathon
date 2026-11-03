@@ -1,5 +1,6 @@
 FROM python:3.12-slim
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core age && rm -rf /var/lib/apt/lists/*
 COPY requirements.lock ./
 RUN pip install --no-cache-dir -r requirements.lock
 RUN useradd --create-home seal && chown seal:seal /app

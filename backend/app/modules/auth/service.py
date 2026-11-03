@@ -349,7 +349,12 @@ class AuthService:
         self, actor_id: UUID, action: str, target_type: str, target_id: str, data: dict[str, object]
     ) -> None:
         # Caller commit cùng nghiệp vụ; không commit riêng khiến audit lệch dữ liệu.
-        await self.repository.write_audit_log(actor_id, action, target_type, target_id, data)
+        source = await self.repository.write_audit_log(
+            actor_id, action, target_type, target_id, data
+        )
+        from app.modules.notifications.service import NotificationService
+
+        await NotificationService.audit(self.repository.session, source, action, target_id, data)
 
     async def list_audit_logs(
         self, actor: UserOutput, actor_id: UUID | None, action: str | None, limit: int, offset: int

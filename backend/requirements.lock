@@ -12,6 +12,7 @@ billiard==4.3.1
 celery==5.6.3
 certifi==2026.10.23
 cffi==2.1.1
+charset-normalizer==3.5.2
 click==8.5.0
 click-didyoumean==0.3.1
 click-plugins==1.1.1.2
@@ -20,6 +21,7 @@ cloudinary==1.46.3
 colorama==0.4.6
 dnspython==2.9.0
 email-validator==2.3.0
+et-xmlfile==2.0.0
 fastapi==0.162.0
 greenlet==3.5.6
 h11==0.16.0
@@ -31,8 +33,10 @@ iniconfig==2.3.1
 kombu==5.6.2
 Mako==1.4.3
 MarkupSafe==3.0.4
+openpyxl==3.1.5
 opentelemetry-api==1.45.1
 packaging==26.3
+pillow==13.0.0
 pluggy==1.7.0
 prompt_toolkit==3.0.53
 psycopg==3.3.6
@@ -51,6 +55,7 @@ python-engineio==4.15.0
 python-socketio==5.17.0
 PyYAML==6.0.3
 redis==6.4.0
+reportlab==4.5.1
 ruff==0.17.3
 simple-websocket==1.1.0
 six==1.17.0

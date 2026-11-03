@@ -1,0 +1,141 @@
+name: ${SEAL_STACK:-seal-staging}
+
+x-app: &app
+  build:
+    context: ..
+  image: ${SEAL_IMAGE:-seal-backend:staging}
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: seal
+      POSTGRES_DB: seal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U seal -d seal']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:8.6
+    restart: unless-stopped
+    command: [redis-server, --appendonly, 'yes']
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *app
+    restart: 'no'
+    command: [alembic, upgrade, head]
+  api:
+    <<: *app
+    command: [uvicorn, 'app.main:app', --host, '0.0.0.0', --port, '8000', --proxy-headers, '--forwarded-allow-ips=*', --no-access-log]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/ready',timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+  worker: &worker
+    <<: *app
+    command: [celery, -A, worker.celery_app, worker, -Q, celery, --concurrency=2, '--hostname=general@%h']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -m, worker.healthcheck, worker]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+  realtime-worker:
+    <<: *worker
+    command: [celery, -A, worker.celery_app, worker, -Q, realtime, --concurrency=1, '--hostname=realtime@%h']
+  email-worker:
+    <<: *worker
+    command: [celery, -A, worker.celery_app, worker, -Q, email, --concurrency=1, '--hostname=email@%h']
+  ai-worker:
+    <<: *app
+    command: [celery, -A, worker.celery_app, worker, -Q, ai-review, --concurrency=1, '--hostname=ai@%h']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -m, worker.healthcheck, worker]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+  beat:
+    <<: *app
+    command: [celery, -A, worker.celery_app, beat, --schedule=/tmp/celerybeat-schedule]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -m, worker.healthcheck, beat]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443']
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN}
+      FRONTEND_UPSTREAM: ${FRONTEND_UPSTREAM:?Set frontend upstream URL}
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      api:
+        condition: service_healthy
+  backup:
+    build: backup
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: seal
+      PGDATABASE: seal
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?Set offline age public key}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./backups/postgres:/backups
+      - backup_status:/status
+    tmpfs: [/tmp]
+    depends_on:
+      postgres:
+        condition: service_healthy
+  asset-backup:
+    <<: *app
+    command: [sh, deploy/backup/assets.sh]
+    environment:
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backups/assets:/backups
+      - backup_status:/db-backup-status:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  postgres:
+  redis:
+  backup_status:

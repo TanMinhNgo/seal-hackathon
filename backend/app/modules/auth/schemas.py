@@ -150,7 +150,17 @@ class AuditLogPage(BaseModel):
 
 
 class ServiceStatus(BaseModel):
-    name: Literal["database", "redis", "worker", "beat", "email_queue", "storage"]
+    name: Literal[
+        "database",
+        "redis",
+        "worker",
+        "beat",
+        "email_queue",
+        "storage",
+        "worker_heartbeat",
+        "ai_queue",
+        "realtime_queue",
+    ]
     status: Literal["ok", "degraded", "down", "not_configured"]
     latency_ms: int | None = Field(default=None, ge=0)
     detail: str | None = None

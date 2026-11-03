@@ -46,6 +46,8 @@ try {
     $services = @(
         @{ Name = 'api'; File = $pythonPath; Dir = $backendPath; Args = '-m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000' },
         @{ Name = 'worker'; File = $pythonPath; Dir = $backendPath; Args = '-m celery -A worker.celery_app:celery_app worker -Q celery --pool=solo --loglevel=info' },
+        @{ Name = 'realtime-worker'; File = $pythonPath; Dir = $backendPath; Args = '-m celery -A worker.celery_app:celery_app worker -Q realtime --concurrency=1 --pool=solo --hostname=realtime@%h --loglevel=info' },
+        @{ Name = 'email-worker'; File = $pythonPath; Dir = $backendPath; Args = '-m celery -A worker.celery_app:celery_app worker -Q email --concurrency=1 --pool=solo --hostname=email@%h --loglevel=info' },
         @{ Name = 'ai-worker'; File = $pythonPath; Dir = $backendPath; Args = '-m celery -A worker.celery_app:celery_app worker -Q ai-review --concurrency=1 --pool=solo --hostname=ai@%h --loglevel=info' },
         @{ Name = 'beat'; File = $pythonPath; Dir = $backendPath; Args = '-m celery -A worker.celery_app:celery_app beat --loglevel=info' },
         @{ Name = 'frontend'; File = $env:ComSpec; Dir = $frontendPath; Args = '/d /s /c "npm.cmd run dev -- --hostname 127.0.0.1 --port 3000"' }

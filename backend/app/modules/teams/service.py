@@ -480,11 +480,12 @@ class TeamService:
             or datetime.now(UTC) >= utc(team.invite_expires_at)
         ):
             raise ApiError(409, "INVALID_INVITE_CODE", "Invite code is expired")
-        link = f"{str(self.settings.frontend_url).rstrip('/')}/join?code={team.invite_code}"
-        await self.repository.commit()
-        await self.auth.queue_email(
-            email, "SEAL - Team invitation", f"You are invited to join {team.name}: {link}"
+        from app.modules.notifications.service import NotificationService
+
+        await NotificationService.invitation(
+            self.repository.session, team.event_id, team, email, f"/join?code={team.invite_code}"
         )
+        await self.repository.commit()
 
     async def review(self, actor: UserOutput, team_id: UUID, data: ReviewInput) -> TeamOutput:
         team, event, actor = await self.locked(actor, team_id, organizer=True)
@@ -512,16 +513,9 @@ class TeamService:
         team.review_note = data.note
         if changed:
             team.reviewed_at = datetime.now(UTC)
-        leader = (await self.auth.users([team.leader_id]))[team.leader_id]
-        result = await self.save(team, actor, "team.reviewed", data.model_dump())
         if changed:
-            # shortcut: queue lỗi sau commit cần BTC kiểm tra lại; Phase 7 bổ sung outbox.
-            await self.auth.queue_email(
-                str(leader.email),
-                "SEAL - Team review",
-                f"Team {team.name}: {data.status}. {data.note or ''}",
-            )
-        return result
+            return await self.save(team, actor, "team.reviewed", data.model_dump())
+        return (await self.render([team], actor))[0]
 
     async def transition(self, actor: UserOutput, event_id: UUID, to_status: str) -> EventOutput:
         approved = await self.repository.approved(event_id)

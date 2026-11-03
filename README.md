@@ -67,7 +67,7 @@ Từ thư mục gốc, chạy toàn bộ và áp dụng migration:
 .\run.ps1
 ```
 
-Mở Docker Desktop trước khi chạy. Script khởi động PostgreSQL/Redis bằng Compose, áp dụng migration rồi chạy API (reload), frontend dev, Celery worker mặc định, worker riêng queue `ai-review` (concurrency 1) và một Beat **local**. Log ở `.logs/`. Nhấn Ctrl+C để dừng các tiến trình ứng dụng do script tạo; PostgreSQL/Redis vẫn chạy. Kiểm tra script bằng mock: `pwsh -File tests/run.test.ps1`.
+Mở Docker Desktop trước khi chạy. Script khởi động PostgreSQL/Redis bằng Compose, áp dụng migration rồi chạy API (reload), frontend dev, Celery worker sync mặc định, worker riêng cho `realtime`, `email`, `ai-review` (mỗi queue concurrency 1) và một Beat **local**. Log ở `.logs/`. Nhấn Ctrl+C để dừng các tiến trình ứng dụng do script tạo; PostgreSQL/Redis vẫn chạy. Kiểm tra script bằng mock: `pwsh -File tests/run.test.ps1`.
 
 ```powershell
 docker compose up -d
@@ -86,6 +86,9 @@ Worker trên Windows dùng pool solo. Nếu chạy từng phần thủ công:
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m celery -A worker.celery_app:celery_app worker -Q celery --pool=solo --loglevel=info
+# Terminal riêng cho realtime và email; không dùng chung worker sync.
+.\.venv\Scripts\python.exe -m celery -A worker.celery_app:celery_app worker -Q realtime --concurrency=1 --pool=solo --hostname=realtime@%h --loglevel=info
+.\.venv\Scripts\python.exe -m celery -A worker.celery_app:celery_app worker -Q email --concurrency=1 --pool=solo --hostname=email@%h --loglevel=info
 # Terminal riêng cho AI; worker Linux dùng pool mặc định để có time limit.
 .\.venv\Scripts\python.exe -m celery -A worker.celery_app:celery_app worker -Q ai-review --concurrency=1 --pool=solo --hostname=ai@%h --loglevel=info
 ```

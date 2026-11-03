@@ -1,5 +1,5 @@
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from urllib.parse import quote
 
@@ -12,6 +12,7 @@ from app.core.config import Settings
 MAX_FILES = 1000
 MAX_PATCH_BYTES = 1024 * 1024
 RATE_KEY = "seal:github:sync:rate-limit"
+RATE_RESERVE = 500
 
 
 def budget_pause(settings: Settings) -> int:
@@ -56,14 +57,17 @@ class GitHubSync:
         self.client.close()
 
     def get(self, suffix: str = "", **params: object) -> tuple[object, bool]:
+        return self.request("GET", self.path + suffix, params=params)
+
+    def request(self, method: str, path: str, **kwargs: object) -> tuple[object, bool]:
         try:
             if pause := budget_pause(self.settings):
                 raise GitHubSyncError("GITHUB_RATE_LIMITED", pause)
-            response = self.client.get(self.path + suffix, params=params)
+            response = self.client.request(method, path, **kwargs)
             remaining = int(response.headers.get("x-ratelimit-remaining", "5000"))
             if (
                 response.status_code == 429
-                or remaining <= 10
+                or remaining <= RATE_RESERVE
                 or (response.status_code == 403 and "retry-after" in response.headers)
             ):
                 reset = int(response.headers.get("x-ratelimit-reset", "0"))
@@ -87,6 +91,61 @@ class GitHubSync:
             return response.json(), "next" in response.links
         except (httpx.HTTPError, ValueError):
             raise GitHubSyncError("GITHUB_UNAVAILABLE") from None
+
+    def baseline(self, shas: list[str], heartbeat: Callable[[], None]) -> Iterator[dict]:
+        owner, name = self.path.removeprefix("/repos/").split("/")
+        for start in range(0, len(shas), 100):
+            batch = shas[start : start + 100]
+            if any(not re.fullmatch(r"[0-9a-f]{40}", sha) for sha in batch):
+                raise GitHubSyncError("GITHUB_UNAVAILABLE")
+            heartbeat()
+            fields = " ".join(
+                f'c{i}: object(oid:"{sha}") {{ ... on Commit {{ '
+                "oid message committedDate author { name } additions deletions } }"
+                for i, sha in enumerate(batch)
+            )
+            data, _ = self.request(
+                "POST",
+                "/graphql",
+                json={
+                    "query": "query($owner:String!,$name:String!){"
+                    "repository(owner:$owner,name:$name){isPrivate " + fields + "}}",
+                    "variables": {"owner": owner, "name": name},
+                },
+            )
+            try:
+                if data.get("errors"):
+                    raise ValueError("Incomplete metadata batch")
+                repo = data["data"]["repository"]
+                if repo["isPrivate"] is not False:
+                    raise GitHubSyncError("REPO_NOT_ACCESSIBLE")
+                rows = []
+                for i, sha in enumerate(batch):
+                    row = repo[f"c{i}"]
+                    if row["oid"] != sha or any(
+                        type(row[k]) is not int or row[k] < 0 for k in ("additions", "deletions")
+                    ):
+                        raise ValueError("Invalid commit metadata")
+                    if not isinstance(row["message"], str):
+                        raise ValueError("Invalid commit message")
+                    rows.append(
+                        {
+                            "sha": sha,
+                            "author": (row.get("author") or {}).get("name") or "Unknown",
+                            "message": row["message"],
+                            "committed_at": datetime.fromisoformat(
+                                row["committedDate"].replace("Z", "+00:00")
+                            ),
+                            "additions": row["additions"],
+                            "deletions": row["deletions"],
+                            "url": f"{self.url}/commit/{sha}",
+                            "files": [],
+                            "diff_truncated": True,
+                        }
+                    )
+            except (KeyError, TypeError, ValueError, AttributeError):
+                raise GitHubSyncError("GITHUB_UNAVAILABLE") from None
+            yield from rows
 
     def branch_head(self, branch: str | None) -> tuple[str, str]:
         meta, _ = self.get()

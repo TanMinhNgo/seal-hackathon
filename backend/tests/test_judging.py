@@ -259,7 +259,20 @@ def test_lock_publish_repair_revisions_and_close(judging_world):
     progress_state(True, True)
     snapshots = database_query(w.engine, select(PublicationSnapshot))
     assert len(snapshots) == 2
-    assert len(database_query(w.engine, select(ResultEmail))) == 2
+    from app.modules.notifications.models import NotificationDelivery
+
+    assert (
+        len(
+            database_query(
+                w.engine,
+                select(NotificationDelivery).where(
+                    NotificationDelivery.notification_type == "round.publish",
+                    NotificationDelivery.channel == "email",
+                ),
+            )
+        )
+        >= 2
+    )
     actions = database_query(w.engine, select(AuditLog.action))
     assert "round.unpublish" in actions and "assignment.reopen" in actions
     database_query(
@@ -524,6 +537,16 @@ def test_result_worker_receipts_are_idempotent_and_failures_not_retried(judging_
     monkeypatch.setattr(mailer, "send_email", send)
     try:
         with Session(engine, expire_on_commit=False) as session:
+            snapshot = session.scalars(select(PublicationSnapshot)).first()
+            session.add(
+                ResultEmail(
+                    snapshot_id=snapshot.id,
+                    user_id=UUID(w.alice.id),
+                    recipient=w.alice.email,
+                    body="Legacy result delivery",
+                )
+            )
+            session.commit()
             jobs = ResultEmailJobs(ResultEmailRepository(session))
             assert jobs.deliver() == 1
             assert jobs.deliver() == 0
@@ -532,6 +555,18 @@ def test_result_worker_receipts_are_idempotent_and_failures_not_retried(judging_
         call(w, "post", w.base + "/publish")
         send.side_effect = RuntimeError("ambiguous SMTP delivery")
         with Session(engine, expire_on_commit=False) as session:
+            snapshot = session.scalars(
+                select(PublicationSnapshot).order_by(PublicationSnapshot.revision.desc())
+            ).first()
+            session.add(
+                ResultEmail(
+                    snapshot_id=snapshot.id,
+                    user_id=UUID(w.alice.id),
+                    recipient=w.alice.email,
+                    body="Legacy result delivery",
+                )
+            )
+            session.commit()
             jobs = ResultEmailJobs(ResultEmailRepository(session))
             assert jobs.deliver() == 0
             assert jobs.deliver() == 0
@@ -621,3 +656,53 @@ def test_qa_rate_limit_pending_members_and_state(judging_world):
         ).status_code
         == 409
     )
+
+
+def test_republish_blocked_by_late_conflict_until_reassigned(judging_world):
+    w = judging_world
+    rows = complete(w)
+    assert call(w, "post", w.base + "/lock").status_code == 204
+    assert call(w, "post", w.base + "/publish").status_code == 204
+    original = database_query(w.engine, select(PublicationSnapshot.data))[0]
+    locked_at = call(w, "get", w.base + "/judging-progress").json()["locked_at"]
+    assert call(w, "post", w.base + "/unpublish", body={"reason": "recheck"}).status_code == 204
+    a = rows[0]
+    judge = next(j for j in w.judges if j.id == a["judge"]["id"])
+    roles = call(w, "get", f"/events/{w.event['id']}/roles?limit=100").json()["items"]
+    role = next(r for r in roles if r["user"]["id"] == judge.id and r["role"] == "judge")
+    assert (
+        call(w, "delete", f"/events/{w.event['id']}/roles/{role['id']}").json()["code"]
+        == "ROLE_IN_USE"
+    )
+    conflict = {"team_id": w.team["id"], "reason": "Late disclosure"}
+    assert call(w, "post", f"/events/{w.event['id']}/conflicts", judge, conflict).status_code == 201
+    # Điểm của giám khảo bị xung đột không được công bố lại dù vòng vẫn khóa.
+    response = call(w, "post", w.base + "/publish")
+    assert response.status_code == 409
+    assert response.json()["code"] == "SCORING_INCOMPLETE"
+    detail = response.json()["detail"]
+    assert w.team["id"] in detail and w.team["name"] in detail
+    assert "submitted=2, required=2, assigned=2, conflict_or_invalid_judge=True" in detail
+    assert judge.email not in detail and "Helpful feedback" not in detail
+    progress = call(w, "get", w.base + "/judging-progress").json()
+    assert progress["locked_at"] == locked_at and progress["published_at"] is None
+    assert database_query(w.engine, select(PublicationSnapshot.data)) == [original]
+    assert w.client.get("/api/v1" + w.base + "/leaderboard").json()["code"] == "NOT_PUBLISHED"
+    assert call(w, "post", w.base + "/unlock", body={"reason": "conflict"}).status_code == 204
+    assert call(w, "post", w.base + "/lock").json()["code"] == "SCORING_INCOMPLETE"
+    cancel = call(w, "post", f"/assignments/{a['id']}/cancel", body={"reason": "conflict"})
+    assert cancel.status_code == 200, cancel.text
+    new = call(w, "post", w.base + "/assignments/auto", body={"judges_per_team": 2}).json()
+    replacement = new["items"][0]
+    assert call(w, "post", w.base + "/lock").json()["code"] == "SCORING_INCOMPLETE"
+    score(w, replacement, next(j for j in w.judges if j.id == replacement["judge"]["id"]))
+    assert call(w, "post", w.base + "/lock").status_code == 204
+    assert call(w, "post", w.base + "/publish").status_code == 204
+    board = w.client.get("/api/v1" + w.base + "/leaderboard").json()
+    assert board["publication_revision"] == 2
+    assert database_query(
+        w.engine, select(PublicationSnapshot.data).where(PublicationSnapshot.revision == 1)
+    ) == [original]
+    actions = database_query(w.engine, select(AuditLog.action))
+    assert actions.count("round.publish") == 2
+    assert "round.unpublish" in actions and "assignment.cancel" in actions

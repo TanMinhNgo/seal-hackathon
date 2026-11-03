@@ -72,6 +72,10 @@ def commit_world(submission_world, auth_settings, monkeypatch):
         ],
         "diff_truncated": False,
     }
+    fake.baseline.side_effect = lambda shas, heartbeat: [
+        {**fake.detail.side_effect(sha, heartbeat), "files": [], "diff_truncated": True}
+        for sha in shas
+    ]
     w.github = fake
     monkeypatch.setattr(jobs, "GitHubSync", Mock(return_value=fake))
     w.publish = Mock()
@@ -104,11 +108,13 @@ def test_baseline_late_push_rewrite_incomplete_and_idempotency(commit_world):
     assert datetime.fromisoformat(late["committed_at"]) < datetime.now(UTC) - timedelta(days=90)
     stats = call(w, w.base + "/commit-stats").json()
     assert stats["total"] == 1 and stats["sync_status"] == "ok"
-    assert not run(w, shas=[B], complete=False)
+    w.github.branch_head.return_value = ("main", C)
+    assert not run(w, shas=[C], complete=False)
     assert not call(w, w.base + "/commits/" + A).json()["removed"]
     assert call(w, w.base + "/commit-stats").json()["last_synced_at"] == stats["last_synced_at"]
-    assert run(w, shas=[B])
+    assert run(w, shas=[C])
     assert call(w, w.base + "/commits/" + A).json()["removed"]
+    w.github.branch_head.return_value = ("main", B)
     assert run(w, shas=[B, A])
     assert not call(w, w.base + "/commits/" + A).json()["removed"]
 
@@ -124,7 +130,7 @@ def test_access_diff_pagination_and_pending_member(commit_world):
         assert response.headers["cache-control"] == "no-store"
         assert call(w, w.base + suffix, w.alice).status_code == 200
     diff = call(w, w.base + f"/commits/{A}/diff?limit=1&offset=1").json()
-    assert diff == {"items": [], "total": 1, "truncated": False}
+    assert diff == {"items": [], "total": 0, "truncated": True}
     assert call(w, w.base + "/commits/" + C).status_code == 404
     assert call(w, w.base + "/commits/not-a-sha").status_code == 422
     database_query(w.engine, update(TeamMember).values(status="pending"))
@@ -162,6 +168,7 @@ def test_worker_lease_duplicate_recovery_closed_and_error_safety(commit_world):
         assert worker.run(UUID(w.team["id"]), token)
         assert not worker.run(UUID(w.team["id"]), token)
     w.github.history.side_effect = GitHubSyncError("GITHUB_RATE_LIMITED")
+    w.github.branch_head.return_value = ("main", B)
     with pytest.raises(GitHubSyncError):
         run(w)
     stats = call(w, w.base + "/commit-stats").json()
@@ -206,17 +213,21 @@ def test_overview_inactivity_errors_and_config(commit_world):
 def test_repo_failure_alert_once_then_recovery(commit_world, monkeypatch):
     w = commit_world
     send = Mock(side_effect=ConnectionError("ambiguous SMTP"))
-    monkeypatch.setattr(jobs.mailer, "send_email", send)
+    from app.integrations import mailer
+
+    monkeypatch.setattr(mailer, "send_email", send)
     w.github.branch_head.side_effect = GitHubSyncError("REPO_NOT_ACCESSIBLE")
     for _ in range(2):
         with pytest.raises(GitHubSyncError):
             run(w)
+    dispatch_notifications(w, monkeypatch)
     assert send.call_count == 1
     w.github.branch_head.side_effect = None
     assert run(w)
     w.github.branch_head.side_effect = GitHubSyncError("REPO_NOT_ACCESSIBLE")
     with pytest.raises(GitHubSyncError):
         run(w)
+    dispatch_notifications(w, monkeypatch)
     assert send.call_count == 2
 
 
@@ -340,9 +351,96 @@ def test_github_diff_limits_missing_patch_and_renames(github, monkeypatch):
     assert result["files"][1]["binary"] is None and result["files"][1]["truncated"]
 
 
+def test_baseline_batches_keep_real_stats_without_individual_diffs(github):
+    client, _ = github
+    shas = [f"{i:040x}" for i in range(201)]
+    requests = []
+
+    def handle(request):
+        import json
+        import re
+
+        requests.append(request)
+        assert request.method == "POST" and request.url.path == "/graphql"
+        body = json.loads(request.content)
+        assert body["variables"] == {"owner": "example", "name": "public"}
+        matches = re.findall(r'c(\d+): object\(oid:"([0-9a-f]{40})"\)', body["query"])
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "repository": {
+                        "isPrivate": False,
+                        **{
+                            f"c{i}": {
+                                "oid": sha,
+                                "message": "Baseline",
+                                "author": {"name": "Student"},
+                                "committedDate": "2026-01-01T00:00:00Z",
+                                "additions": 12,
+                                "deletions": 3,
+                            }
+                            for i, sha in matches
+                        },
+                    }
+                }
+            },
+        )
+
+    transport(client, handle)
+    rows = list(client.baseline(shas, lambda: None))
+    assert len(requests) == 3 and [r["sha"] for r in rows] == shas
+    assert all(
+        r["additions"] == 12 and r["deletions"] == 3 and r["files"] == [] and r["diff_truncated"]
+        for r in rows
+    )
+
+
+@pytest.mark.parametrize("case", ["partial", "private", "missing", "wrong_sha", "bad_stats"])
+def test_baseline_rejects_incomplete_or_private_metadata(github, case):
+    client, _ = github
+    repo = {
+        "isPrivate": case == "private",
+        "c0": {
+            "oid": B if case == "wrong_sha" else A,
+            "message": "Commit",
+            "author": None,
+            "committedDate": "2026-01-01T00:00:00Z",
+            "additions": -1 if case == "bad_stats" else 1,
+            "deletions": 0,
+        },
+    }
+    if case == "missing":
+        repo["c0"] = None
+    transport(
+        client,
+        lambda request: httpx.Response(
+            200,
+            json={
+                "data": {"repository": repo},
+                **({"errors": [{"message": "partial"}]} if case == "partial" else {}),
+            },
+        ),
+    )
+    with pytest.raises(GitHubSyncError):
+        list(client.baseline([A], lambda: None))
+
+
+def test_unchanged_verified_head_does_not_scan_history_or_refetch_baseline(commit_world):
+    w = commit_world
+    assert run(w)
+    w.github.history.reset_mock()
+    w.github.baseline.reset_mock()
+    w.github.detail.reset_mock()
+    assert run(w)
+    w.github.history.assert_not_called()
+    w.github.baseline.assert_not_called()
+    w.github.detail.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "status,headers",
-    [(200, {"x-ratelimit-remaining": "10"}), (429, {}), (403, {"retry-after": "120"})],
+    [(200, {"x-ratelimit-remaining": "500"}), (429, {}), (403, {"retry-after": "120"})],
 )
 def test_github_rate_limit_shared_pause(github, status, headers):
     client, redis = github
@@ -438,7 +536,9 @@ def test_task_retry_reserves_one_lease_and_stops_at_limit(commit_world, monkeypa
     retry = Mock(return_value=Retry())
     monkeypatch.setattr(tasks.sync_team, "retry", retry)
     send = Mock()
-    monkeypatch.setattr(jobs.mailer, "send_email", send)
+    from app.integrations import mailer
+
+    monkeypatch.setattr(mailer, "send_email", send)
     w.github.history.side_effect = GitHubSyncError("REPO_NOT_ACCESSIBLE", 120)
     with Session(w.sync_engine, expire_on_commit=False) as session:
         token = str(uuid4())
@@ -465,7 +565,9 @@ def test_task_retry_reserves_one_lease_and_stops_at_limit(commit_world, monkeypa
                 repo = CommitJobRepository(session)
                 assert not repo.claim(state.team_id, str(uuid4()), 0)
                 with pytest.raises(RuntimeError, match="SYNC_LEASE_LOST"):
-                    repo.fail(state.team_id, token, "GITHUB_UNAVAILABLE", None, 0)
+                    repo.fail(
+                        state.team_id, token, "GITHUB_UNAVAILABLE", None, 0, UUID(w.event["id"])
+                    )
                 session.rollback()
             assert tasks.sync_team.run(w.team["id"], token) is False
             token = retry.call_args.kwargs["args"][1]
@@ -484,6 +586,7 @@ def test_task_retry_reserves_one_lease_and_stops_at_limit(commit_world, monkeypa
     assert not stats["running"] and stats["next_retry_at"] is None
     assert stats["sync_status"] == "error" and stats["sync_error"] == "REPO_NOT_ACCESSIBLE"
     assert all(s["running"] for s in observed[:-1]) and not observed[-1]["running"]
+    dispatch_notifications(w, monkeypatch)
     assert retry.call_count == 3 and send.call_count == 1
     with Session(w.sync_engine) as session:
         state = session.get(CommitSyncState, UUID(w.team["id"]))
@@ -589,3 +692,11 @@ def test_dispatch_continues_after_one_team_enqueue_failure(monkeypatch):
     monkeypatch.setattr(tasks.sync_team, "apply_async", publish)
     assert tasks.sync_commits() == 1
     assert publish.call_count == 2 and repository.release.call_count == 1
+
+
+def dispatch_notifications(w, monkeypatch):
+    from app.modules.notifications.jobs import NotificationJobs
+
+    monkeypatch.setattr("app.modules.notifications.jobs.publish", Mock())
+    with Session(w.sync_engine, expire_on_commit=False) as session:
+        NotificationJobs(session, w.settings).deliver()

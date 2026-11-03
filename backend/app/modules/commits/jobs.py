@@ -4,9 +4,7 @@ from uuid import UUID, uuid4
 
 from app.core.config import Settings
 from app.core.schemas import utc
-from app.integrations import mailer
 from app.integrations.github_sync import GitHubSync, GitHubSyncError
-from app.modules.auth.service import AuthService
 from app.modules.commits.repository import CommitJobRepository
 from app.modules.events.service import EventService
 from app.modules.teams.service import TeamService
@@ -51,13 +49,24 @@ class CommitJobs:
             branch, head = client.branch_head(state.branch)
             state.branch = branch
             self.repository.commit()
-            shas, complete = client.history(head, heartbeat)
             stored = self.repository.stored(team_id)
             baseline = state.baseline_at is None
-            for sha in shas:
-                if sha in stored:
-                    continue
-                detail = client.detail(sha, heartbeat)
+            if (
+                head == previous_head
+                and state.sync_status == "ok"
+                and not state.truncated
+                and not baseline
+            ):
+                shas, complete = [sha for sha, row in stored.items() if not row.removed], True
+            else:
+                shas, complete = client.history(head, heartbeat)
+            missing = [sha for sha in shas if sha not in stored]
+            details = (
+                client.baseline(missing, heartbeat)
+                if baseline
+                else (client.detail(sha, heartbeat) for sha in missing)
+            )
+            for detail in details:
                 heartbeat()
                 if not EventService.sync_guard(self.repository.session, event.id):
                     self.repository.release(team_id, token)
@@ -103,6 +112,7 @@ class CommitJobs:
                 state.sync_status = "error"
                 state.sync_error = "GITHUB_INCOMPLETE_HISTORY"
             state.truncated = not complete
+            self.repository.realtime(event.id, team_id, state)
             self.repository.commit()
             self.repository.release(team_id, token)
             return complete
@@ -113,24 +123,10 @@ class CommitJobs:
             )
             delay = min(240, max(error.retry_after, retry_delay))
             try:
-                notify = self.repository.fail(team_id, token, error.code, retry_token, delay)
+                self.repository.fail(team_id, token, error.code, retry_token, delay, event.id)
             except RuntimeError:
                 self.repository.session.rollback()
                 return False
-            if notify and self.settings.smtp_host:
-                for recipient in AuthService.sync_recipients(self.repository.session, event.id):
-                    try:
-                        mailer.send_email(
-                            recipient,
-                            "SEAL - Repository sync failed",
-                            f"Team {team.id}: repository is private, removed or inaccessible. "
-                            "Check commit overview.",
-                        )
-                    except Exception:
-                        logger.warning(
-                            "Repository alert delivery requires review",
-                            extra={"team_id": str(team_id)},
-                        )
             raise GitHubSyncError(error.code, delay) from None
         finally:
             if client:

@@ -18,6 +18,9 @@ from app.modules.auth.schemas import AuditLogOutput, DataCounts
 
 
 class AuthRepository:
+    async def ready(self) -> None:
+        await self.session.execute(select(1))
+
     async def event_started_at(self, event_id: UUID) -> datetime | None:
         return await self.session.scalar(
             select(func.min(AuditLog.created_at)).where(
@@ -329,17 +332,17 @@ class AuthRepository:
 
     async def write_audit_log(
         self, actor_id: UUID, action: str, target_type: str, target_id: str, data: dict[str, object]
-    ) -> None:
-        self.session.add(
-            AuditLog(
-                actor_id=actor_id,
-                action=action,
-                target_type=target_type,
-                target_id=target_id,
-                data=data,
-            )
+    ) -> UUID:
+        row = AuditLog(
+            actor_id=actor_id,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            data=data,
         )
+        self.session.add(row)
         await self.session.flush()
+        return row.id
 
     async def list_audit_logs(
         self, actor_id: UUID | None, action: str | None, limit: int, offset: int

@@ -46,7 +46,7 @@ try {
         try { & $runScript } catch { $caught = $_ }
         if (-not $caught) { throw 'Script phai thoat khi gap loi hoac test stop.' }
         if ($scenario -eq '' -and $caught.Exception.Message -ne 'test stop') { throw $caught }
-        $expected = switch ($scenario) { '' { 5 }; 'start' { 2 }; default { 0 } }
+        $expected = switch ($scenario) { '' { 7 }; 'start' { 2 }; default { 0 } }
         if ($global:sealRunTest.Started -ne $expected -or $global:sealRunTest.Stopped -ne $expected) {
             throw "Sai so tien trinh khoi dong/don dep: $scenario"
         }
@@ -56,6 +56,11 @@ try {
         }
         if ($scenario -eq '' -and -not ($global:sealRunTest.Commands | Where-Object { $_ -match 'worker -Q ai-review --concurrency=1' })) {
             throw 'Thieu worker AI tach queue va gioi han concurrency.'
+        }
+        foreach ($queue in @('realtime', 'email')) {
+            if ($scenario -eq '' -and -not ($global:sealRunTest.Commands | Where-Object { $_ -match "worker -Q $queue --concurrency=1" })) {
+                throw "Thieu worker rieng cho queue $queue."
+            }
         }
     }
     Write-Host 'PASS: local startup, migration failure, Docker failure, partial-start cleanup, location.'

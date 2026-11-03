@@ -78,7 +78,7 @@
 
 - `Team`: `{id, event_id, name, status, track_id, leader_id, invite_code (chỉ trả cho thành viên; không trả cho admin), repo_url, members: [{user: UserBrief, status, joined_at}], created_at}`
 - Link mời FE: `{FRONTEND_URL}/join?code=...`
-- Gửi lời mời không tạo thành viên hoặc tiết lộ email đã đăng ký; mã hết hạn phải quay mã trước. Giới hạn 30 email/giờ/leader; queue lỗi trả `503 EMAIL_QUEUE_UNAVAILABLE`, queued không chứng minh inbox nhận. Người nhận vẫn phải đăng nhập, đăng ký đúng event và xin vào đội.
+- Gửi lời mời không tạo thành viên hoặc tiết lộ email đã đăng ký; mã hết hạn phải quay mã trước. Giới hạn 30 email/giờ/leader; từ Phase 7 `queued` nghĩa receipt đã lưu DB/outbox, broker lỗi không làm mất lời mời đã lưu; queued không chứng minh inbox nhận. Người nhận vẫn phải đăng nhập, đăng ký đúng event và xin vào đội.
 - Mã lỗi: `LAST_ORGANIZER`, `EVENT_NOT_CLOSED`, `INVALID_STATUS_TRANSITION`, `REGISTRATION_CLOSED`, `ALREADY_IN_TEAM`, `TEAM_FULL`, `INVALID_INVITE_CODE`, `REPO_NOT_ACCESSIBLE`, `NOT_TEAM_LEADER`.
 
 ## Backend (Codex)
@@ -176,7 +176,7 @@ Trạng thái FE: [x]
 
 - Thêm `GITHUB_TOKEN` trong backend/.env.example; điền token hệ thống có quyền đọc repo public vào backend/.env rồi restart API. Thiếu token trả 503 GITHUB_NOT_CONFIGURED, provider lỗi/rate limit trả 503 GITHUB_UNAVAILABLE. Không cần cấp quyền repo private; code chủ động từ chối repo private/disabled. Chỉ nhận https://github.com/owner/repo, không fetch URL bất kỳ hoặc theo redirect.
 - Local hiện chưa có GITHUB_TOKEN. Bộ test đã mô phỏng GitHub public/private/404/401/5xx và URL không an toàn; chưa gọi repo thật bằng token hệ thống.
-- Lời mời dùng mã hiện tại và link FRONTEND_URL/join?code=..., không tạo membership hoặc tiết lộ email có tài khoản. Review gửi email cho leader sau commit; queue lỗi trả 503 EMAIL_QUEUE_UNAVAILABLE nhưng quyết định đã lưu. Không tự gửi lại nếu người dùng bấm review cùng trạng thái/note; Phase 7 bổ sung outbox để khôi phục enqueue. Queue nhận không chứng minh SMTP/inbox.
+- Lời mời dùng mã hiện tại và link FRONTEND_URL/join?code=..., không tạo membership hoặc tiết lộ email có tài khoản. Từ Phase 7, review ghi quyết định và outbox trong cùng transaction, trả 200 sau khi DB commit kể cả broker chưa hoạt động. Không tạo mail mới khi review cùng trạng thái/note. Worker gửi sau commit; xem `notification-deliveries` thay vì thử review lại. Chi tiết cơ chế trước Phase 7 được thay bởi hợp đồng outbox ở Phase 7; `sent` không chứng minh inbox.
 
 ### Việc FE cần làm
 

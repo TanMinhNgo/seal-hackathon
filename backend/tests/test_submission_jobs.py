@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.integrations import mailer
 from app.modules.events.models import Round
+from app.modules.notifications.jobs import NotificationJobs
+from app.modules.notifications.models import NotificationDelivery
 from app.modules.submissions.jobs import SubmissionJobs
 from app.modules.submissions.models import DeadlineReminder, FileUpload, Submission, SubmissionFile
 from app.modules.submissions.repository import SubmissionJobRepository
@@ -35,10 +37,12 @@ def test_reminders_dedupe_two_milestones_and_no_ambiguous_retry(
     w = submission_world
     deliver = Mock()
     monkeypatch.setattr(mailer, "send_email", deliver)
+    monkeypatch.setattr("app.modules.notifications.jobs.publish", Mock())
     with Session(job_engine, expire_on_commit=False) as session:
         jobs = SubmissionJobs(SubmissionJobRepository(session), auth_settings)
         assert jobs.remind() == 1
         assert jobs.remind() == 0
+        assert NotificationJobs(session, auth_settings).deliver() == 2
         assert deliver.call_count == 1
     database_query(
         w.engine,
@@ -49,10 +53,16 @@ def test_reminders_dedupe_two_milestones_and_no_ambiguous_retry(
     deliver.side_effect = RuntimeError("ambiguous SMTP receipt")
     with Session(job_engine, expire_on_commit=False) as session:
         jobs = SubmissionJobs(SubmissionJobRepository(session), auth_settings)
-        assert jobs.remind() == 0
+        assert jobs.remind() == 1
+        assert NotificationJobs(session, auth_settings).deliver() == 1
         assert jobs.remind() == 0
         assert deliver.call_count == 2
-        assert sorted(session.scalars(select(DeadlineReminder.status))) == ["accepted", "failed"]
+        assert list(session.scalars(select(DeadlineReminder.status))) == ["queued", "queued"]
+        assert sorted(
+            session.scalars(
+                select(NotificationDelivery.status).where(NotificationDelivery.channel == "email")
+            )
+        ) == ["sent", "unknown"]
 
 
 def test_reminders_skip_ineligible_and_unapproved(

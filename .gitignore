@@ -13,3 +13,7 @@ __pycache__/
 celerybeat-schedule*
 *.egg-info/
 .logs/
+# Staging/production private materials.
+backend/deploy/certs/
+backend/deploy/backups/
+.playwright-mcp/

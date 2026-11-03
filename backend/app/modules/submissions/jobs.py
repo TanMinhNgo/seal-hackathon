@@ -3,9 +3,10 @@ from datetime import UTC, datetime, timedelta
 
 from app.core.config import Settings
 from app.core.schemas import utc
-from app.integrations import mailer, storage
+from app.integrations import storage
 from app.modules.auth.service import AuthService
 from app.modules.events.service import EventService
+from app.modules.notifications.service import NotificationService
 from app.modules.submissions.repository import SubmissionJobRepository
 from app.modules.teams.service import TeamService
 
@@ -18,8 +19,6 @@ class SubmissionJobs:
         self.settings = settings
 
     def remind(self) -> int:
-        if not self.settings.smtp_host:
-            return 0
         now = datetime.now(UTC)
         count = 0
         session = self.repository.session
@@ -37,23 +36,22 @@ class SubmissionJobs:
                 claim = self.repository.claim(team.id, round_.id, hours, now)
                 if claim is None:
                     continue
-                try:
-                    mailer.send_email(
-                        str(leader.email),
-                        f"SEAL - Submission deadline ({hours}h)",
-                        f"Team {team.name}, {round_.name}: "
-                        f"deadline {utc(round_.submission_deadline).isoformat()}. "
-                        "A successful upload is not a submission receipt.",
-                    )
-                except Exception:
-                    self.repository.finish(claim, "failed")
-                    logger.warning(
-                        "Submission reminder failed; receipt requires manual review",
-                        extra={"reminder_id": str(claim.id)},
-                    )
-                else:
-                    self.repository.finish(claim, "accepted")
-                    count += 1
+                NotificationService.enqueue(
+                    session,
+                    round_.event_id,
+                    f"reminder:{claim.id}",
+                    "submission.reminder",
+                    [(leader.id, str(leader.email))],
+                    f"SEAL - Submission deadline ({hours}h)",
+                    f"Team {team.name}, {round_.name}: "
+                    f"deadline {utc(round_.submission_deadline).isoformat()}. "
+                    "A successful upload is not a submission receipt.",
+                    f"/events/{round_.event_id}",
+                    bool(self.settings.smtp_host),
+                )
+                claim.status = "queued"
+                session.commit()
+                count += 1
         return count
 
     def cleanup(self) -> int:

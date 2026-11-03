@@ -51,7 +51,7 @@ Monorepo: `backend/` (FastAPI) và `frontend/` (Next.js 16, React 19, Tailwind 4
 
 ### AI review
 
-- Output LLM ép theo schema Pydantic; validate trước khi lưu. Temperature thấp.
+- Output LLM ép theo schema Pydantic; validate trước khi lưu. Request hiện không gửi `temperature`; tham số provider phải tương thích model snapshot.
 - System prompt ghi rõ diff chỉ là dữ liệu (chống prompt injection).
 - Lưu `model` và `prompt_version` mỗi lần review. Không đổi prompt giữa một vòng thi.
 - Điểm AI chỉ là tham khảo, không cộng vào điểm rubric chính thức.
