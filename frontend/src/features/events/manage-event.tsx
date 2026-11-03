@@ -5,12 +5,13 @@ import { useState } from "react";
 import { FormError } from "@/features/auth/auth-card";
 import { AiConfigPanel, AiQuality } from "@/features/ai-reviews/ai-reviews";
 import { CommitOverviewPanel } from "@/features/commits/commits";
+import { AnnouncementForm, AnnouncementList } from "@/features/notifications/announcements";
 import { JudgingPanel, MentorAssignmentsPanel } from "@/features/judging/organizer";
 import { RoundSubmissionsPanel } from "@/features/submissions/submissions";
 import { errorMessage } from "@/lib/api";
 import { CrudPanel, EventEditor, RegistrationsPanel, RolesPanel, StatusStepper, Tabs, TeamsPanel, useEvent, useEventCache } from "./manage";
 
-type Tab = "info" | "rounds" | "tracks" | "prizes" | "roles" | "teams" | "registrations" | "submissions" | "judging" | "mentors" | "progress" | "ai";
+type Tab = "info" | "rounds" | "tracks" | "prizes" | "roles" | "teams" | "registrations" | "submissions" | "judging" | "mentors" | "progress" | "ai" | "announcements";
 
 /** Khu vận hành của ban tổ chức cho một cuộc thi. */
 export function ManageEvent({ eventId }: { eventId: string }) {
@@ -29,11 +30,16 @@ export function ManageEvent({ eventId }: { eventId: string }) {
       <div>
         <p className="font-serif text-lg italic">Ban tổ chức</p>
         <h1 className="mt-1 break-words text-[clamp(36px,5vw,56px)] font-black leading-none tracking-[-0.045em]">{e.name}.</h1>
-        {e.status !== "draft" && (
-          <Link href={`/events/${e.slug}`} className="mt-2 inline-block text-sm font-bold underline">
-            Xem trang công khai
+        <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm font-bold">
+          <Link href={`/manage/events/${e.id}/dashboard`} className="underline">
+            Dashboard &amp; báo cáo
           </Link>
-        )}
+          {e.status !== "draft" && (
+            <Link href={`/events/${e.slug}`} className="underline">
+              Xem trang công khai
+            </Link>
+          )}
+        </p>
       </div>
 
       <StatusStepper event={e} canTransition />
@@ -55,6 +61,7 @@ export function ManageEvent({ eventId }: { eventId: string }) {
           ["ai", "AI review"],
           ["mentors", "Phân công mentor"],
           ["judging", "Chấm điểm"],
+          ["announcements", "Thông báo"],
         ]}
       />
 
@@ -80,6 +87,18 @@ export function ManageEvent({ eventId }: { eventId: string }) {
         {tab === "ai" && <AiConfigPanel event={e} onSaved={cacheEvent} />}
         {tab === "mentors" && <MentorAssignmentsPanel eventId={e.id} />}
         {tab === "judging" && <JudgingPanel eventId={e.id} />}
+        {tab === "announcements" && (
+          <div className="space-y-8">
+            <div>
+              <h2 className="mb-4 text-xl font-black">Gửi thông báo</h2>
+              <AnnouncementForm eventId={e.id} closed={e.status === "closed"} />
+            </div>
+            <div className="border-t-2 border-dashed border-line pt-6">
+              <h2 className="mb-4 text-xl font-black">Đã gửi</h2>
+              <AnnouncementList eventId={e.id} showAudience />
+            </div>
+          </div>
+        )}
       </section>
     </main>
   );

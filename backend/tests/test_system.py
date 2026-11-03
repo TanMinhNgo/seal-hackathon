@@ -20,10 +20,15 @@ from worker.scheduler import HeartbeatScheduler
 def probes(monkeypatch):
     redis = AsyncMock()
     beat = AsyncMock(return_value=time())
-    workers = Mock(return_value={"celery"})
+    workers = Mock(return_value={"celery", "email", "realtime"})
     monkeypatch.setattr(system_monitor, "ping_redis", redis)
     monkeypatch.setattr(system_monitor, "beat_heartbeat", beat)
     monkeypatch.setattr(system_monitor, "worker_queues", workers)
+    monkeypatch.setattr(
+        system_monitor,
+        "worker_heartbeats",
+        AsyncMock(return_value={"celery", "ai-review", "email", "realtime"}),
+    )
     return redis, beat, workers
 
 
@@ -64,10 +69,27 @@ def test_admin_system_counts_and_openapi(auth_client, email_queue, auth_engine, 
         "storage_bytes": None,
     }
     state = statuses(response)
-    assert set(state) == {"database", "redis", "worker", "beat", "email_queue", "storage"}
-    assert all(state[name]["status"] == "ok" for name in state if name != "storage")
+    assert set(state) == {
+        "database",
+        "redis",
+        "worker",
+        "beat",
+        "email_queue",
+        "storage",
+        "worker_heartbeat",
+        "ai_queue",
+        "realtime_queue",
+    }
+    assert all(
+        state[name]["status"] == "ok" for name in state if name not in {"storage", "ai_queue"}
+    )
+    assert state["ai_queue"]["status"] == "degraded"
     assert state["storage"]["status"] == "not_configured"
-    assert all(value["latency_ms"] >= 0 for name, value in state.items() if name != "storage")
+    assert all(
+        value["latency_ms"] >= 0
+        for name, value in state.items()
+        if name not in {"storage", "worker_heartbeat", "ai_queue", "realtime_queue"}
+    )
     api.openapi_schema = None
     operation = api.openapi()["paths"]["/api/v1/admin/system"]["get"]
     assert operation["security"] == [{"HTTPBearer": []}]

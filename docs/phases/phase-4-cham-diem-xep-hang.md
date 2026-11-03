@@ -126,6 +126,10 @@
 
 Trạng thái FE: [ ] — code xong 2026-10-31 (typecheck/lint/build xanh; trang công khai SSR thử với vòng chưa công bố và slug sai). BE đã thêm `locked_at`, `published_at` vào `judging-progress`; FE cần sinh lại type và dùng metadata này thay cho việc luôn hiện đủ bốn nút. Kết quả nghiệm thu trình duyệt và phạm vi còn lại xem phần bổ sung bên dưới; chưa đánh dấu nghiệm thu toàn bộ FE.
 
+### Thay đổi bởi Phase 7
+
+- Thông báo phân công, mentor/Q&A, eligibility và công bố/thu hồi dùng `notifications` + `notification_deliveries` cùng transaction nghiệp vụ; `seal.notifications` xử lý sau commit. Publish mới không tạo thêm `result_emails`; task cũ chỉ drain receipt lịch sử, không chuyển receipt SMTP mơ hồ sang outbox để tránh gửi lại. Thông báo mới chỉ chứa sự kiện và link để đọc dữ liệu hiện tại qua REST, không kèm điểm trước khóa hoặc tên judge.
+
 ## Xong khi
 
 - Chạy trọn một cuộc thi thử từ `draft` đến `closed` chỉ trên SEAL.

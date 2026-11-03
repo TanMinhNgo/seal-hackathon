@@ -1,3 +1,4 @@
+import json
 from time import time
 
 from celery import Celery
@@ -44,3 +45,17 @@ def worker_queues(redis_url: str) -> set[str] | None:
         if not replies:
             return None
         return {queue["name"] for queues in replies.values() for queue in queues}
+
+
+async def worker_heartbeats(redis_url: str) -> set[str]:
+    queues = set()
+    async with AsyncRedis.from_url(
+        redis_url, socket_connect_timeout=0.5, socket_timeout=0.5
+    ) as client:
+        async for key in client.scan_iter("seal:health:worker:*", count=100):
+            raw = await client.get(key)
+            if raw:
+                payload = json.loads(raw)
+                if -30 <= time() - float(payload["at"]) < 90:
+                    queues.update(payload["queues"])
+    return queues

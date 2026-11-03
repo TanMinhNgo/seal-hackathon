@@ -472,7 +472,10 @@ def test_invite_rotation_expiry_withdraw_and_rate_limits(world, email_queue):
         ).status_code
         == 202
     )
-    assert rotated in email_queue.call_args.kwargs["args"][2]
+    from app.modules.notifications.models import NotificationDelivery
+
+    invitation = database_query(w.engine, select(NotificationDelivery.payload))[-1]
+    assert rotated in invitation["link"]
     assert (
         w.client.delete(
             f"/api/v1/events/{w.event['id']}/register", headers=w.alice.headers
@@ -767,7 +770,10 @@ def test_review_queue_failure_preserves_saved_decision(world, email_queue):
         headers=w.organizer.headers,
         json={"status": "rejected", "note": "Fix repo"},
     )
-    assert response.status_code == 503 and response.json()["code"] == "EMAIL_QUEUE_UNAVAILABLE"
+    assert response.status_code == 200
+    from app.modules.notifications.models import NotificationDelivery
+
+    assert database_query(w.engine, select(NotificationDelivery.status)) == ["queued", "queued"]
     assert (
         w.client.get(f"/api/v1/teams/{team['id']}", headers=w.alice.headers).json()["status"]
         == "rejected"

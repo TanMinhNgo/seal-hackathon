@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { buttonClass } from "@/components/ui/button";
+import { NotificationBell } from "@/features/notifications/notifications";
 import { api } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 import { hasRole, useMyEventRoles } from "./use-event-roles";
@@ -61,6 +62,7 @@ export function MainNav() {
       )}
       {user && (
         <>
+          <NotificationBell />
           <Link href="/profile" className={`max-w-48 truncate font-bold ${LINK}`}>
             {user.full_name}
           </Link>

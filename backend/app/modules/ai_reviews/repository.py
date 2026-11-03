@@ -338,21 +338,26 @@ class ReviewJobRepository:
                 .values(tokens_used=AiBudget.tokens_used - refund)
             )
         if review is not None:
-            self.session.add(
-                CommitReview(
-                    **(
-                        {
-                            "job_id": job.id,
-                            "team_id": job.team_id,
-                            "round_id": job.round_id,
-                            "commit_shas": job.commit_shas,
-                            "model": job.config["model"],
-                            "prompt_version": job.prompt_version,
-                            "tokens_used": job.tokens_used,
-                        }
-                        | review
-                    )
+            row = CommitReview(
+                **(
+                    {
+                        "job_id": job.id,
+                        "team_id": job.team_id,
+                        "round_id": job.round_id,
+                        "commit_shas": job.commit_shas,
+                        "model": job.config["model"],
+                        "prompt_version": job.prompt_version,
+                        "tokens_used": job.tokens_used,
+                    }
+                    | review
                 )
+            )
+            self.session.add(row)
+            self.session.flush()
+            from app.modules.notifications.service import NotificationService
+
+            NotificationService.realtime(
+                self.session, "ai_review:new", f"team:{job.team_id}", {"review_id": str(row.id)}
             )
         self.session.commit()
         return True

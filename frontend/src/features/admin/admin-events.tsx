@@ -85,7 +85,7 @@ export function AdminEvents() {
       </form>
 
       {events.isError && <div className="mt-4"><FormError>{errorMessage(events.error)}</FormError></div>}
-      <div className="sketch mt-5 overflow-x-auto p-0">
+      <div className="sketch relative mt-5 overflow-x-auto p-0">
         <table className="w-full min-w-[860px] text-left text-sm">
           <thead className="border-b-2 border-ink bg-cream">
             <tr>

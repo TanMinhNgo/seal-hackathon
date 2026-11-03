@@ -119,6 +119,28 @@ class CommitRepository:
 
 
 class CommitJobRepository:
+    def realtime(
+        self, event_id: UUID, team_id: UUID, state: CommitSyncState, running: bool = False
+    ) -> None:
+        from app.modules.notifications.service import NotificationService
+
+        total, last = self.session.execute(
+            select(func.count(), func.max(Commit.committed_at)).where(Commit.team_id == team_id)
+        ).one()
+        NotificationService.realtime(
+            self.session,
+            "sync:updated",
+            f"event:{event_id}:organizer",
+            {
+                "team_id": str(team_id),
+                **stats(state, total, last).model_dump(mode="json"),
+                "running": running,
+                "next_retry_at": state.next_retry_at.isoformat()
+                if running and state.next_retry_at
+                else None,
+            },
+        )
+
     def __init__(self, session: object) -> None:
         self.session = session
 
@@ -243,6 +265,7 @@ class CommitJobRepository:
         error: str,
         retry_token: str | None,
         delay: int,
+        event_id: UUID,
     ) -> bool:
         state = self.state(team_id)
         notify = error == "REPO_NOT_ACCESSIBLE" and not state.notified
@@ -270,6 +293,11 @@ class CommitJobRepository:
         )
         if not result.rowcount:
             raise RuntimeError("SYNC_LEASE_LOST")
+        from app.modules.notifications.service import NotificationService
+
+        if notify:
+            NotificationService.sync_failure(self.session, event_id, team_id, token)
+        self.realtime(event_id, team_id, state, bool(retry_token))
         self.session.commit()
         return notify
 

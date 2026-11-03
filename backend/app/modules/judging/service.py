@@ -18,7 +18,6 @@ from app.modules.judging.models import (
     MentorNote,
     MentorQuestion,
     PublicationSnapshot,
-    ResultEmail,
     RubricCriterion,
     Score,
 )
@@ -53,6 +52,18 @@ if TYPE_CHECKING:
 
 
 class JudgingService:
+    async def export_leaderboard(
+        self, actor: UserOutput, event_id: UUID, round_id: UUID, track_id: UUID | None
+    ) -> list[dict]:
+        state = await self.repository.state(round_id)
+        if not state or not state.locked_at:
+            raise ApiError(409, "SCORES_NOT_LOCKED", "Lock scores before exporting")
+        board = await self.leaderboard(actor, event_id, round_id, track_id, 10001, 0)
+        return [
+            {"rank": row.rank, "team_id": row.team.id, "team": row.team.name, "total": row.total}
+            for row in board.items
+        ]
+
     @staticmethod
     def sync_round_published(session: object, round_id: UUID) -> bool:
         return JudgingRepository.sync_round_published(session, round_id)
@@ -224,18 +235,8 @@ class JudgingService:
                 or str(team_id) not in snapshot.data["results"]
             ):
                 raise ApiError(409, "ROUND_NOT_ELIGIBLE", "Team has no published result in source")
-        previous = await self.events.eligibility_sources(round_id)
         await self.events.replace_eligibility(round_id, source.id, selected)
         await self.save(actor, "round.eligibility_updated", round_id, data.model_dump())
-        teams = await self.teams.judging_teams(list(set(previous) | set(selected)))
-        users = await self.auth.users([t.leader_id for t in teams.values()])
-        for user in users.values():
-            # shortcut: email sau commit dùng queue sẵn có; Phase 7 bổ sung outbox thông báo.
-            await self.auth.queue_email(
-                str(user.email),
-                "SEAL - Round eligibility",
-                f"Eligibility updated for {round_.name}",
-            )
         return await self.eligible_page(actor, event_id, round_id, 100, 0)
 
     async def conflicts(
@@ -701,10 +702,18 @@ class JudgingService:
             progress = await self.progress_rows(round_)
             valid = [p for p in progress if p.status != "not_submitted"]
             if not valid or any(p.status != "complete" for p in valid):
+                blockers = "; ".join(
+                    f"{p.team.name} ({p.team.id}): submitted={p.submitted}, "
+                    f"required={p.required}, assigned={p.assigned}, "
+                    f"conflict_or_invalid_judge={p.has_conflict}"
+                    for p in valid
+                    if p.status != "complete"
+                )
                 raise ApiError(
                     409,
                     "SCORING_INCOMPLETE",
-                    "Every submitted team needs complete conflict-free judging",
+                    "Every submitted team needs complete conflict-free judging. "
+                    + (blockers or "No eligible submitted teams"),
                 )
         if action == "lock":
             if state.locked_at:
@@ -721,31 +730,12 @@ class JudgingService:
                 return
             data = await self.ranking_data(round_, state)
             state.publication_revision += 1
-            snapshot = await self.repository.add(
+            await self.repository.add(
                 PublicationSnapshot,
                 round_id=round_id,
                 revision=state.publication_revision,
                 data=data,
             )
-            teams = [t for t in await self.eligible(round_) if str(t.id) in data["results"]]
-            users = await self.auth.users(
-                [m.user_id for t in teams for m in t.members if m.status == "active"]
-            )
-            for team in teams:
-                result = data["results"][str(team.id)]
-                for member in team.members:
-                    user = users.get(member.user_id) if member.status == "active" else None
-                    if user and user.is_active and not user.is_admin:
-                        await self.repository.add(
-                            ResultEmail,
-                            snapshot_id=snapshot.id,
-                            user_id=user.id,
-                            recipient=str(user.email),
-                            body=(
-                                f"{round_.name}: {team.name}, rank {result['rank']}, "
-                                f"score {result['total']}. Revision {state.publication_revision}"
-                            ),
-                        )
             state.published_at = datetime.now(UTC)
         elif action == "unpublish":
             if await self.events.has_started_dependents(round_id):
@@ -829,7 +819,8 @@ class JudgingService:
                     )
                 )
         result = {"items": await self.render_mentor_assignments(created)}
-        await self.save(actor, "mentors.assigned", event_id, data.model_dump())
+        if created:
+            await self.save(actor, "mentors.assigned", event_id, data.model_dump())
         return result
 
     async def revoke_mentor(self, actor: UserOutput, assignment_id: UUID) -> None:

@@ -30,7 +30,7 @@ class SubmissionJobRepository:
         row = DeadlineReminder(team_id=team_id, round_id=round_id, hours=hours, created_at=now)
         self.session.add(row)
         try:
-            self.session.commit()
+            self.session.flush()
         except IntegrityError:
             self.session.rollback()
             return None

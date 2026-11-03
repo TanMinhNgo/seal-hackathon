@@ -19,6 +19,20 @@ def elapsed_ms(start: float) -> int:
 
 
 class SystemService:
+    async def ready(self) -> bool:
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(
+                    self.repository.ready(),
+                    system_monitor.ping_redis(str(self.settings.redis_url)),
+                    return_exceptions=True,
+                ),
+                timeout=2,
+            )
+        except Exception:
+            return False
+        return not any(isinstance(result, BaseException) for result in results)
+
     def __init__(self, repository: AuthRepository, settings: Settings) -> None:
         self.repository = repository
         self.settings = settings
@@ -73,7 +87,7 @@ class SystemService:
             )
         return ServiceStatus(name="redis", status="ok", latency_ms=elapsed_ms(start))
 
-    async def workers(self) -> tuple[ServiceStatus, ServiceStatus]:
+    async def workers(self) -> tuple[ServiceStatus, ...]:
         start = perf_counter()
         try:
             queues = await asyncio.wait_for(
@@ -100,7 +114,37 @@ class SystemService:
             if queues is not None and mail_queue in queues
             else "Email queue consumer not confirmed",
         )
-        return worker, email
+        try:
+            heartbeats = await asyncio.wait_for(
+                system_monitor.worker_heartbeats(str(self.settings.redis_url)), timeout=2
+            )
+        except Exception:
+            heartbeats = set()
+        return (
+            worker,
+            email,
+            ServiceStatus(
+                name="worker_heartbeat",
+                status="ok" if heartbeats else "degraded",
+                detail="Fresh worker heartbeat"
+                if heartbeats
+                else "Worker heartbeat missing or stale",
+            ),
+            ServiceStatus(
+                name="ai_queue",
+                status="ok"
+                if "ai-review" in heartbeats and queues is not None and "ai-review" in queues
+                else "degraded",
+                detail="AI queue consumer and heartbeat required",
+            ),
+            ServiceStatus(
+                name="realtime_queue",
+                status="ok"
+                if "realtime" in heartbeats and queues is not None and "realtime" in queues
+                else "degraded",
+                detail="Dedicated realtime consumer and heartbeat required",
+            ),
+        )
 
     async def beat(self) -> ServiceStatus:
         start = perf_counter()

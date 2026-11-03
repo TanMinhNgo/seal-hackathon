@@ -1,3 +1,5 @@
+import hashlib
+from collections.abc import Iterable
 from pathlib import PurePosixPath
 from tempfile import SpooledTemporaryFile
 from time import time
@@ -61,6 +63,39 @@ class Storage:
         )
         fields["api_key"] = self.options["api_key"]
         return f"https://api.cloudinary.com/v1_1/{self.options['cloud_name']}/raw/upload", fields
+
+    def backup(self, rows: Iterable, archive: ZipFile) -> list[dict]:
+        manifest = []
+        with httpx.Client(timeout=60, follow_redirects=False) as client:
+            for row in rows:
+                digest = hashlib.sha256()
+                size = 0
+                entry = f"files/{row.id}"
+                with (
+                    client.stream("GET", self.download(row.storage_key, row.filename)) as response,
+                    archive.open(entry, "w", force_zip64=True) as target,
+                ):
+                    if response.status_code != 200:
+                        raise RuntimeError("Asset backup download failed")
+                    for chunk in response.iter_bytes(1024 * 1024):
+                        size += len(chunk)
+                        if size > row.size:
+                            raise RuntimeError("Asset size mismatch")
+                        digest.update(chunk)
+                        target.write(chunk)
+                if size != row.size:
+                    raise RuntimeError("Asset size mismatch")
+                manifest.append(
+                    {
+                        "id": str(row.id),
+                        "storage_key": row.storage_key,
+                        "filename": row.filename,
+                        "entry": entry,
+                        "size": size,
+                        "sha256": digest.hexdigest(),
+                    }
+                )
+        return manifest
 
     def download(self, key: str, filename: str) -> str:
         # Raw public_id bao gồm extension; không truyền format để tránh nối extension hai lần.

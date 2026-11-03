@@ -9,6 +9,7 @@ import { FormError } from "@/features/auth/auth-card";
 import type { Page } from "@/features/events/types";
 import { api, errorCode, errorMessage } from "@/lib/api";
 import type { components } from "@/lib/api-types";
+import { useRealtime } from "@/lib/realtime";
 
 type S = components["schemas"];
 export type Commit = S["CommitOutput"];
@@ -324,6 +325,10 @@ export function CommitSelect({ teamId }: { teamId: string }) {
 export function CommitOverviewPanel({ eventId, teamExtra }: { eventId: string; teamExtra?: (teamId: string) => ReactNode }) {
   const [offset, setOffset] = useState(0);
   const [picked, setPicked] = useState("");
+  const queryClient = useQueryClient();
+  useRealtime(`event:${eventId}:organizer`, {
+    "sync:updated": () => ["commit-overview", "commit-stats", "commits"].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] })),
+  });
   const list = useQuery({
     queryKey: ["commit-overview", eventId],
     // BE phân trang theo thứ tự tạo đội nên tải hết rồi sắp ở FE.

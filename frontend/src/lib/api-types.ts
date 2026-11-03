@@ -1455,6 +1455,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inbox */
+        get: operations["inbox_api_v1_me_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read All */
+        post: operations["read_all_api_v1_me_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read */
+        post: operations["read_api_v1_me_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{event_id}/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Announcements */
+        get: operations["announcements_api_v1_events__event_id__announcements_get"];
+        put?: never;
+        /** Announce */
+        post: operations["announce_api_v1_events__event_id__announcements_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{event_id}/notification-deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Deliveries */
+        get: operations["deliveries_api_v1_events__event_id__notification_deliveries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{event_id}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dashboard */
+        get: operations["dashboard_api_v1_events__event_id__dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/{event_id}/reports/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export */
+        get: operations["export_api_v1_events__event_id__reports_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1464,6 +1584,23 @@ export interface paths {
         };
         /** Health */
         get: operations["health_api_v1_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ready */
+        get: operations["ready_api_v1_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1564,6 +1701,55 @@ export interface components {
             token_budget?: number | null;
             /** Budget Exhausted */
             budget_exhausted?: boolean | null;
+        };
+        /** AnnouncementInput */
+        AnnouncementInput: {
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /**
+             * Audience
+             * @enum {string}
+             */
+            audience: "public" | "all" | "participants" | "judges" | "mentors";
+            /**
+             * Send Email
+             * @default false
+             */
+            send_email: boolean;
+        };
+        /** AnnouncementOutput */
+        AnnouncementOutput: {
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /**
+             * Audience
+             * @enum {string}
+             */
+            audience: "public" | "all" | "participants" | "judges" | "mentors";
+            /**
+             * Send Email
+             * @default false
+             */
+            send_email: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** AnswerInput */
         AnswerInput: {
@@ -1900,6 +2086,47 @@ export interface components {
             /** Order */
             order: number;
         };
+        /** Dashboard */
+        Dashboard: {
+            /** Registrations */
+            registrations: number;
+            /** Teams By Status */
+            teams_by_status: {
+                [key: string]: number;
+            };
+            /** Submissions By Round */
+            submissions_by_round: {
+                [key: string]: number;
+            };
+            /** Judging Progress */
+            judging_progress: {
+                [key: string]: number;
+            };
+            /** Commits Per Day */
+            commits_per_day: {
+                [key: string]: number;
+            };
+            /** Ai Verdict Counts */
+            ai_verdict_counts: {
+                [key: string]: number;
+            };
+            /** Unassigned Teams */
+            unassigned_teams: number;
+            /** Unsubmitted Teams */
+            unsubmitted_teams: number;
+            /** Unresolved Questions */
+            unresolved_questions: number;
+            /** Mentor Progress */
+            mentor_progress: {
+                [key: string]: number;
+            };
+            /** Sync Errors */
+            sync_errors: number;
+            /** Ai Job Counts */
+            ai_job_counts: {
+                [key: string]: number;
+            };
+        };
         /** DataCounts */
         DataCounts: {
             /**
@@ -1951,6 +2178,40 @@ export interface components {
             database_bytes?: number | null;
             /** Storage Bytes */
             storage_bytes?: number | null;
+        };
+        /** DeliveryOutput */
+        DeliveryOutput: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Notification Type */
+            notification_type: string;
+            /** Recipient Id */
+            recipient_id: string | null;
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "in_app" | "email";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "sent" | "failed" | "unknown";
+            /** Error Code */
+            error_code: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** DiffFile */
         DiffFile: {
@@ -2638,6 +2899,45 @@ export interface components {
              */
             created_at: string;
         };
+        /** NotificationOutput */
+        NotificationOutput: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Type */
+            type: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Link */
+            link: string;
+            /** Read At */
+            read_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** NotificationPage */
+        NotificationPage: {
+            /** Items */
+            items: components["schemas"]["NotificationOutput"][];
+            /** Total */
+            total: number;
+            /** Unread Count */
+            unread_count: number;
+        };
+        /** Page[AnnouncementOutput] */
+        Page_AnnouncementOutput_: {
+            /** Items */
+            items: components["schemas"]["AnnouncementOutput"][];
+            /** Total */
+            total: number;
+        };
         /** Page[AnswerOutput] */
         Page_AnswerOutput_: {
             /** Items */
@@ -2670,6 +2970,13 @@ export interface components {
         Page_ConflictOutput_: {
             /** Items */
             items: components["schemas"]["ConflictOutput"][];
+            /** Total */
+            total: number;
+        };
+        /** Page[DeliveryOutput] */
+        Page_DeliveryOutput_: {
+            /** Items */
+            items: components["schemas"]["DeliveryOutput"][];
             /** Total */
             total: number;
         };
@@ -3327,7 +3634,7 @@ export interface components {
              * Name
              * @enum {string}
              */
-            name: "database" | "redis" | "worker" | "beat" | "email_queue" | "storage";
+            name: "database" | "redis" | "worker" | "beat" | "email_queue" | "storage" | "worker_heartbeat" | "ai_queue";
             /**
              * Status
              * @enum {string}
@@ -12603,6 +12910,259 @@ export interface operations {
             };
         };
     };
+    inbox_api_v1_me_notifications_get: {
+        parameters: {
+            query?: {
+                unread?: boolean | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_all_api_v1_me_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    read_api_v1_me_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    announcements_api_v1_events__event_id__announcements_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AnnouncementOutput_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    announce_api_v1_events__event_id__announcements_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnouncementInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementOutput"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deliveries_api_v1_events__event_id__notification_deliveries_get: {
+        parameters: {
+            query?: {
+                status?: ("queued" | "sent" | "failed" | "unknown") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DeliveryOutput_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dashboard_api_v1_events__event_id__dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_api_v1_events__event_id__reports_export_get: {
+        parameters: {
+            query: {
+                type: "teams" | "submissions" | "leaderboard";
+                format: "xlsx" | "pdf";
+                round_id?: string | null;
+                track_id?: string | null;
+            };
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "application/pdf": unknown;
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -12622,6 +13182,33 @@ export interface operations {
                         [key: string]: string;
                     };
                 };
+            };
+        };
+    };
+    ready_api_v1_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Dependencies unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

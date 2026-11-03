@@ -10,9 +10,10 @@ import { FormError } from "@/features/auth/auth-card";
 import { EventEditor, RegistrationsPanel, RolesPanel, Tabs, TeamsPanel, useEvent, useEventCache } from "@/features/events/manage";
 import type { Event, Page, Round } from "@/features/events/types";
 import { api, errorMessage } from "@/lib/api";
+import { ExportForm } from "@/features/reports/reports";
 import { useLeaveOnForbidden } from "./use-leave-on-forbidden";
 
-type Tab = "info" | "organizers" | "teams" | "registrations";
+type Tab = "info" | "organizers" | "teams" | "registrations" | "reports";
 
 export function AdminEventDetail({ eventId }: { eventId: string }) {
   const event = useEvent(eventId);
@@ -47,6 +48,7 @@ export function AdminEventDetail({ eventId }: { eventId: string }) {
           ["organizers", "Ban tổ chức"],
           ["teams", "Đội thi"],
           ["registrations", "Người đăng ký"],
+          ["reports", "Báo cáo"],
         ]}
       />
 
@@ -55,6 +57,13 @@ export function AdminEventDetail({ eventId }: { eventId: string }) {
         {tab === "organizers" && <RolesPanel eventId={e.id} roles={["organizer"]} />}
         {tab === "teams" && <TeamsPanel eventId={e.id} review={false} />}
         {tab === "registrations" && <RegistrationsPanel eventId={e.id} />}
+        {tab === "reports" && (
+          <>
+            <h2 className="mb-1 text-xl font-black">Xuất báo cáo</h2>
+            <p className="mb-4 text-sm text-muted">Bảng xếp hạng chỉ xuất được khi ban tổ chức đã khóa điểm vòng đó.</p>
+            <ExportForm eventId={e.id} />
+          </>
+        )}
       </section>
     </div>
   );
