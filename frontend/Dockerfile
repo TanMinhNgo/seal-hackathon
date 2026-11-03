@@ -3,7 +3,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run build
+# Next nhúng biến NEXT_PUBLIC_* vào bundle lúc build, không đổi được bằng env khi chạy
+ARG NEXT_PUBLIC_API_URL
+RUN test -n "$NEXT_PUBLIC_API_URL" && npm run build
 
 FROM node:24-alpine
 WORKDIR /app

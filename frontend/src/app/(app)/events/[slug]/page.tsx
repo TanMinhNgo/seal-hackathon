@@ -1,16 +1,18 @@
 import { isAxiosError } from "axios";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { EventStatusBadge } from "@/components/ui/event-status-badge";
 import { LocalTime } from "@/components/ui/local-time";
 import { EventCta } from "@/features/events/event-cta";
+import { AnnouncementList } from "@/features/notifications/announcements";
 import type { Event, Page, Prize, Round, Track } from "@/features/events/types";
 import { api } from "@/lib/api";
 
 const TRACK_TONES = ["bg-sky", "bg-rose", "bg-mint", "bg-sun"];
 const PRIZE_TONES = ["bg-sun", "bg-sky", "bg-rose"];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // cache: generateMetadata và trang dùng chung một lượt gọi API mỗi request
 const load = cache(async (slug: string) => {
@@ -21,7 +23,12 @@ const load = cache(async (slug: string) => {
     return { event, rounds, tracks, prizes };
   } catch (e) {
     // Bản nháp/đã lưu trữ cũng trả 403/404 với khách: coi như không tồn tại
-    if (isAxiosError(e) && (e.response?.status === 404 || e.response?.status === 403)) notFound();
+    if (isAxiosError(e) && (e.response?.status === 404 || e.response?.status === 403)) {
+      // Link trong thông báo của server dùng id cuộc thi: đổi sang URL slug
+      const byId = UUID.test(slug) && (await api.get<Event>(`/events/${slug}`).then((r) => r.data, () => null));
+      if (byId) redirect(`/events/${byId.slug}`);
+      notFound();
+    }
     throw e;
   }
 });
@@ -73,6 +80,10 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
           </dd>
         </div>
       </dl>
+
+      <div className="mt-16 empty:hidden">
+        <AnnouncementList eventId={event.id} title="Thông báo." />
+      </div>
 
       {rounds.length > 0 && (
         <section className="mt-16">

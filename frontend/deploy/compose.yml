@@ -1,0 +1,25 @@
+# Ghép với compose backend (đường dẫn tương đối tính theo file đầu tiên, tức backend/deploy):
+#   docker compose -f backend/deploy/compose.yml -f frontend/deploy/compose.yml up -d --build
+# Trong backend/deploy/.env đặt FRONTEND_UPSTREAM=http://frontend:3000.
+services:
+  frontend:
+    build:
+      context: ../../frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://${DOMAIN:?Set DOMAIN}/api/v1
+    image: ${SEAL_FRONTEND_IMAGE:-seal-frontend:staging}
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:8000/api/v1
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:3000/events']
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+  nginx:
+    depends_on:
+      frontend:
+        condition: service_healthy

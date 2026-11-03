@@ -15,7 +15,7 @@ import { api, codeMessage, errorMessage } from "@/lib/api";
 // shortcut: các danh sách dưới đây lấy 100 mục đầu, đủ cho một cuộc thi hackathon; thêm phân trang nếu vượt
 const ALL = { params: { limit: 100 } };
 const INPUT = "block min-h-11 w-full rounded-xl border-2 border-ink bg-paper px-3 text-[15px]";
-const ASSIGNMENT_STATUS: Record<Assignment["status"], [string, string]> = {
+export const ASSIGNMENT_STATUS: Record<Assignment["status"], [string, string]> = {
   pending: ["Chưa chấm", "bg-paper"],
   draft: ["Đang chấm", "bg-sun"],
   submitted: ["Đã xác nhận", "bg-mint"],

@@ -10,6 +10,8 @@ import type { Event, Page } from "@/features/events/types";
 import { useRounds } from "@/features/submissions/submissions";
 import { api, errorCode, errorMessage } from "@/lib/api";
 import type { components } from "@/lib/api-types";
+import { useRealtime } from "@/lib/realtime";
+import { useAuth } from "@/stores/auth";
 
 type S = components["schemas"];
 type Review = S["ReviewOutput"];
@@ -21,7 +23,7 @@ export type AiMode = "organizer" | "judge" | "readonly";
 const LIMIT = 10;
 const INPUT = "mt-1.5 block w-full rounded-xl border-2 border-ink bg-paper px-3 text-[15px]";
 
-const VERDICT: Record<Review["verdict"], [string, string]> = {
+export const VERDICT: Record<Review["verdict"], [string, string]> = {
   good: ["Tốt", "bg-mint"],
   pass: ["Đạt", "bg-sun"],
   needs_improvement: ["Cần cải thiện", "bg-rose"],
@@ -46,7 +48,7 @@ const FLAG_STATUS: Record<Review["flag_status"], string> = {
   acknowledged: "BTC xác nhận AI sai",
   dismissed: "BTC giữ nguyên đánh giá",
 };
-const JOB_STATUS: Record<S["LastJob"]["status"], string> = {
+export const JOB_STATUS: Record<S["LastJob"]["status"], string> = {
   queued: "Đang chờ",
   running: "Đang chạy",
   completed: "Xong",
@@ -453,6 +455,12 @@ export function AiReviewList({ teamId, roundId, commitSha, mode, canReadFlags = 
 
 /** Khối "Chất lượng code" của một đội: tổng hợp + danh sách review. */
 export function AiQuality({ teamId, roundId, mode, canReadFlags }: { teamId: string; roundId?: string; mode: AiMode; canReadFlags?: boolean }) {
+  const queryClient = useQueryClient();
+  const isAdmin = useAuth((s) => s.user?.is_admin);
+  // BTC/admin không vào được room đội; BTC đã tự poll summary khi có job đang chạy
+  useRealtime(mode === "organizer" || isAdmin ? null : `team:${teamId}`, {
+    "ai_review:new": () => ["ai-reviews", "ai-summary"].forEach((k) => queryClient.invalidateQueries({ queryKey: [k, teamId] })),
+  });
   return (
     <div className="space-y-5">
       <p className="flex flex-wrap items-center gap-2 text-sm text-muted">

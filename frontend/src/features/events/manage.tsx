@@ -383,7 +383,7 @@ export function RolesPanel({ eventId, roles }: { eventId: string; roles: ("organ
 
 // ---------- Đội thi ----------
 
-const TEAM_STATUS: Record<Team["status"], [string, string]> = { pending: ["Chờ duyệt", "bg-sun"], approved: ["Đã duyệt", "bg-mint"], rejected: ["Bị từ chối", "bg-rose"] };
+export const TEAM_STATUS: Record<Team["status"], [string, string]> = { pending: ["Chờ duyệt", "bg-sun"], approved: ["Đã duyệt", "bg-mint"], rejected: ["Bị từ chối", "bg-rose"] };
 const LIMIT = 20;
 
 /** Danh sách đội; `review` = BTC duyệt/từ chối, ngược lại chỉ xem (admin) kèm link hồ sơ. */

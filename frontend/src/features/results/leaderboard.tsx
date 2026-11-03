@@ -1,6 +1,7 @@
 import { isAxiosError } from "axios";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { LiveRefresh } from "@/components/live-refresh";
 import { Doodle } from "@/components/ui/doodle";
 import type { Event, LeaderboardData, Page, Round, Rubric, Track } from "@/features/events/types";
 import { api } from "@/lib/api";
@@ -45,6 +46,7 @@ export async function Leaderboard({ slug, roundId, trackId }: { slug: string; ro
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-24 pt-14 sm:px-6">
+      <LiveRefresh room={`event:${event.id}`} events={["leaderboard:updated", "leaderboard:unpublished"]} />
       <Link href={`/events/${slug}`} className="font-serif text-xl italic underline-offset-4 hover:underline">
         {event.name}
       </Link>

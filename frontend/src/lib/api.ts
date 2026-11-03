@@ -5,7 +5,8 @@ import type { components } from "./api-types";
 type Token = components["schemas"]["TokenOutput"];
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1",
+  // SSR trong container gọi API qua mạng nội bộ; trình duyệt dùng URL public (nhúng lúc build)
+  baseURL: (typeof window === "undefined" && process.env.API_INTERNAL_URL) || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1",
   timeout: 15_000,
   withCredentials: true,
 });
@@ -146,6 +147,13 @@ const MESSAGES: Record<string, string> = {
   AI_JOB_NOT_FOUND: "Không tìm thấy job AI của đội.",
   AI_REVIEW_NOT_FOUND: "Không tìm thấy review AI.",
   AI_FLAG_NOT_FOUND: "Không tìm thấy phản hồi.",
+  NOTIFICATION_NOT_FOUND: "Không tìm thấy thông báo.",
+  ROUND_REQUIRED: "Xuất bảng xếp hạng cần chọn vòng.",
+  EXPORT_TOO_LARGE: "Báo cáo vượt 10.000 dòng: hãy lọc theo vòng hoặc track.",
+  SMTP_NOT_CONFIGURED: "Máy chủ chưa cấu hình gửi email.",
+  SMTP_RECEIPT_UNKNOWN: "Không rõ máy chủ mail đã nhận chưa; không tự gửi lại để tránh trùng.",
+  RECIPIENT_NO_LONGER_ELIGIBLE: "Người nhận không còn thuộc đối tượng nhận lúc gửi.",
+  REALTIME_UNAVAILABLE: "Kênh realtime chưa phát được; người nhận vẫn thấy khi tải lại.",
 };
 
 type Presign = components["schemas"]["PresignOutput"];
