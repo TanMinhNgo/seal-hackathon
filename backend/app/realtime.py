@@ -97,6 +97,7 @@ class GuardedRedisManager(socketio.AsyncRedisManager):
         if not room or not room.startswith(("user:", "event:", "team:")):
             return
         data = message["data"][0]
+        # Chụp danh sách trước vì await bên dưới có thể làm room đổi thành viên.
         for sid, _ in list(self.get_participants("/", room)):
             try:
                 state = await self.server.get_session(sid)

@@ -85,8 +85,8 @@ export function AnnouncementForm({ eventId, closed }: { eventId: string; closed:
     const form = e.currentTarget;
     const f = new FormData(form);
     const body: AnnouncementInput = {
-      title: String(f.get("title")).trim(),
-      body: String(f.get("body")).trim(),
+      title: (f.get("title") as string).trim(),
+      body: (f.get("body") as string).trim(),
       audience: f.get("audience") as Audience,
       send_email: f.get("send_email") === "on",
     };

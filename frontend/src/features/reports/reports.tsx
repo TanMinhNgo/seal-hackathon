@@ -35,6 +35,11 @@ const label = (labels: Labels | undefined, key: string) => {
 };
 
 /** Biểu đồ thanh ngang: số liệu vẫn đọc được bằng chữ, thanh chỉ để nhìn nhanh. */
+function deliveryNote(d: Delivery) {
+  if (d.error_code) return codeMessage(d.error_code);
+  return d.recipient_id ? "" : "Người được mời chưa có tài khoản";
+}
+
 function Bars({ title, data, labels, empty = "Chưa có dữ liệu." }: { title: string; data: Record<string, number>; labels?: Labels; empty?: string }) {
   const entries = Object.entries(data);
   const max = Math.max(1, ...entries.map(([, n]) => n));
@@ -201,7 +206,7 @@ export function DeliveriesPanel({ eventId }: { eventId: string }) {
                     <td className="py-2 pr-3">
                       <span className={`chip ${bg}`}>{text}</span>
                     </td>
-                    <td className="py-2">{d.error_code ? codeMessage(d.error_code) : d.recipient_id ? "" : "Người được mời chưa có tài khoản"}</td>
+                    <td className="py-2">{deliveryNote(d)}</td>
                   </tr>
                 );
               })}

@@ -11,7 +11,7 @@ class ReportRepository:
 
     async def dashboard(self, event_id: UUID) -> dict:
         # Read model báo cáo: aggregate cố định, không nạp model/secret liên module.
-        t, m, r, e, s, a, c, v, j, q, n, sync, roles = (
+        t, _, r, e, s, a, c, v, j, q, n, sync, roles = (
             Base.metadata.tables[key]
             for key in (
                 "teams",
